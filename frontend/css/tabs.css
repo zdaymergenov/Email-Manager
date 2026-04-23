@@ -1,0 +1,61 @@
+/* tabs.css - Система вкладок */
+
+.tabs-container {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    margin-top: 20px;
+}
+
+.tabs-header {
+    display: flex;
+    border-bottom: 2px solid var(--border);
+    background: #fafafa;
+    overflow-x: auto;
+    flex-wrap: wrap;
+}
+
+.tab-button {
+    padding: 16px 20px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 500;
+    color: #666;
+    transition: all 0.3s;
+    white-space: nowrap;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+}
+
+.tab-button:hover {
+    background: #f0f0f0;
+    color: #333;
+}
+
+.tab-button.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+    background: white;
+}
+
+.tabs-content {
+    padding: 30px;
+    min-height: 600px;
+}
+
+.tab-pane {
+    display: none;
+}
+
+.tab-pane.active {
+    display: block;
+}
+
+.section-title {
+    font-size: 22px;
+    margin-bottom: 20px;
+    color: #333;
+}

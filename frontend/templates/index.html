@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📧 Email Manager Pro</title>
+    
+    <!-- CSS МОДУЛИ -->
+    <link rel="stylesheet" href="/frontend/css/base.css">
+    <link rel="stylesheet" href="/frontend/css/navbar.css">
+    <link rel="stylesheet" href="/frontend/css/tabs.css">
+    <link rel="stylesheet" href="/frontend/css/emails-list.css">
+    <link rel="stylesheet" href="/frontend/css/modal.css">
+    <link rel="stylesheet" href="/frontend/css/sidebar.css">
+    <link rel="stylesheet" href="/frontend/css/messages.css">
+    <link rel="stylesheet" href="/frontend/css/filters.css">
+    <link rel="stylesheet" href="/frontend/css/stats.css">
+    <link rel="stylesheet" href="/frontend/css/responsive.css">
+</head>
+<body>
+    <!-- НАВБАР -->
+    <div class="navbar">
+        <h1>📧 Email Manager Pro</h1>
+        <div class="navbar-info">
+            <span id="userInfo">👤 Пользователь</span>
+        </div>
+        <div class="navbar-buttons">
+            <a href="/logout" class="btn btn-danger">Выход</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- ВКЛАДКИ -->
+        <div class="tabs-container">
+            <div class="tabs-header">
+                <button class="tab-button active" data-tab="letters">📬 Письма</button>
+                <button class="tab-button" data-tab="search">🔍 Поиск</button>
+                <button class="tab-button" data-tab="stats">📊 Статистика</button>
+                <button class="tab-button" data-tab="filters">🔎 Фильтры</button>
+                <button class="tab-button" data-tab="sync">⚙️ Синхронизация</button>
+            </div>
+
+            <div class="tabs-content">
+                <!-- ТАБ: ПИСЬМА -->
+                <div id="letters" class="tab-pane active">
+                    <h2 class="section-title">📬 Все письма</h2>
+                    
+                    <div class="filters-bar">
+                        <div class="filter-group">
+                            <label class="filter-label">Должность</label>
+                            <select id="filterPosition" class="filter-select">
+                                <option value="">Все должности</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label class="filter-label">Отдел</label>
+                            <select id="filterDepartment" class="filter-select">
+                                <option value="">Все отделы</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label class="filter-label">Папка</label>
+                            <select id="filterFolder" class="filter-select">
+                                <option value="">Все папки</option>
+                                <option value="Входящие">📥 Входящие</option>
+                                <option value="Отправленные">📤 Отправленные</option>
+                                <option value="Черновики">📝 Черновики</option>
+                                <option value="Спам">🚫 Спам</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="search-section">
+                        <input type="text" class="search-input" id="letterSearch" placeholder="🔍 Поиск по отправителю или теме...">
+                    </div>
+                    
+                    <div id="lettersList" class="emails-list"></div>
+                </div>
+
+                <!-- ТАБ: ПОИСК -->
+                <div id="search" class="tab-pane">
+                    <h2 class="section-title">🔍 Расширенный поиск</h2>
+                    <div class="search-section">
+                        <input type="text" class="search-input" id="searchQuery" placeholder="Введите текст для поиска в теме и теле письма...">
+                        <button class="btn btn-primary" onclick="performSearch()">🔎 Найти</button>
+                    </div>
+                    <div id="searchResults" class="emails-list"></div>
+                </div>
+
+                <!-- ТАБ: СТАТИСТИКА -->
+                <div id="stats" class="tab-pane">
+                    <h2 class="section-title">📊 Статистика</h2>
+                    <div id="statCards" class="stats-grid"></div>
+                    <div class="stats-details">
+                        <h3>📁 По папкам:</h3>
+                        <div id="folderStats"></div>
+                    </div>
+                    <div class="stats-details">
+                        <h3>👥 Топ отправителей:</h3>
+                        <div id="senderStats"></div>
+                    </div>
+                </div>
+
+                <!-- ТАБ: ФИЛЬТРЫ -->
+                <div id="filters" class="tab-pane">
+                    <h2 class="section-title">🔎 Расширенная фильтрация</h2>
+                    
+                    <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid var(--border);">
+                        <h3 style="margin-bottom: 15px;">Фильтрация по:</h3>
+                        
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+                            <div>
+                                <h4 style="margin-bottom: 10px;">💼 По должности</h4>
+                                <div id="positionFilterList" style="display: flex; flex-direction: column; gap: 8px;"></div>
+                            </div>
+                            
+                            <div>
+                                <h4 style="margin-bottom: 10px;">🏢 По отделу</h4>
+                                <div id="departmentFilterList" style="display: flex; flex-direction: column; gap: 8px;"></div>
+                            </div>
+                            
+                            <div>
+                                <h4 style="margin-bottom: 10px;">📁 По папке</h4>
+                                <div style="display: flex; flex-direction: column; gap: 8px;">
+                                    <label class="filter-checkbox">
+                                        <input type="radio" name="folder" value="Входящие"> 📥 Входящие
+                                    </label>
+                                    <label class="filter-checkbox">
+                                        <input type="radio" name="folder" value="Отправленные"> 📤 Отправленные
+                                    </label>
+                                    <label class="filter-checkbox">
+                                        <input type="radio" name="folder" value="Черновики"> 📝 Черновики
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 20px;">
+                            <button class="btn btn-primary" onclick="applyAdvancedFilters()" style="margin-right: 10px;">✅ Применить фильтры</button>
+                            <button class="btn btn-danger" onclick="clearFilters()">🔄 Очистить</button>
+                        </div>
+                    </div>
+                    
+                    <div id="filteredResults" class="emails-list"></div>
+                </div>
+
+                <!-- ТАБ: СИНХРОНИЗАЦИЯ -->
+                <div id="sync" class="tab-pane">
+                    <h2 class="section-title">⚙️ Синхронизация с Outlook</h2>
+                    
+                    <!-- Быстрая синхронизация -->
+                    <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid var(--border);">
+                        <h3 style="margin-bottom: 15px;">🚀 Быстрая синхронизация</h3>
+                        
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 20px;">
+                            <div>
+                                <label style="display: block; margin-bottom: 8px; font-weight: 500;">📅 Период</label>
+                                <select id="syncPeriod" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px;">
+                                    <option value="1h">Последний час</option>
+                                    <option value="6h">Последние 6 часов</option>
+                                    <option value="12h">Последние 12 часов</option>
+                                    <option value="24h" selected>Последние 24 часа</option>
+                                    <option value="7d">Последняя неделя</option>
+                                    <option value="30d">Последний месяц</option>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label style="display: block; margin-bottom: 8px; font-weight: 500;">📁 Режим</label>
+                                <select id="syncMode" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px;">
+                                    <option value="inbox">Только Входящие</option>
+                                    <option value="all">Все папки</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <button class="btn btn-primary" onclick="startSync()" style="width: 100%;">
+                            🔄 Начать синхронизацию
+                        </button>
+                    </div>
+                    
+                    <!-- Ручная синхронизация за период -->
+                    <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid var(--border);">
+                        <h3 style="margin-bottom: 15px;">📆 Ручная синхронизация за период</h3>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                            <div>
+                                <label style="display: block; margin-bottom: 8px; font-weight: 500;">📅 Начальная дата</label>
+                                <input type="date" id="customStartDate" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px;">
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 8px; font-weight: 500;">📅 Конечная дата</label>
+                                <input type="date" id="customEndDate" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px;">
+                            </div>
+                        </div>
+                        
+                        <div style="margin-bottom: 20px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 500;">📁 Режим</label>
+                            <select id="customSyncMode" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px;">
+                                <option value="inbox">Только Входящие</option>
+                                <option value="all">Все папки</option>
+                            </select>
+                        </div>
+                        
+                        <button class="btn btn-primary" onclick="startCustomSync()" style="width: 100%; margin-bottom: 10px;">
+                            📆 Синхронизировать за период
+                        </button>
+                        
+                        <button class="btn btn-danger" onclick="clearDB()" style="width: 100%;">
+                            🗑️ Очистить базу данных
+                        </button>
+                    </div>
+                    
+                    <!-- Прогресс -->
+                    <div id="syncProgress" style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; display: none;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div class="spinner" style="width: 20px; height: 20px; border: 3px solid #e2e8f0; border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                            <span id="syncStatus">Синхронизация...</span>
+                        </div>
+                        <div style="margin-top: 15px; height: 4px; background: #e2e8f0; border-radius: 2px; overflow: hidden;">
+                            <div id="syncProgressBar" style="width: 0%; height: 100%; background: var(--primary); transition: width 0.3s;"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Результат -->
+                    <div id="syncResult" style="margin-bottom: 20px;"></div>
+                    
+                    <!-- История синхронизаций -->
+                    <div class="stats-details">
+                        <h3>📋 История синхронизаций:</h3>
+                        <div id="syncLogsList"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- МОДАЛЬНОЕ ОКНО ДЛЯ ПИСЬМА (ОДНО!) -->
+    <div id="emailModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📧 Письмо</h2>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div id="emailDetail"></div>
+        </div>
+    </div>
+
+    <!-- МОДАЛЬНОЕ ОКНО ДЛЯ ВЕТКИ ПИСЕМ -->
+    <div id="threadModal" class="modal thread-modal">
+        <div class="modal-content thread-modal-content">
+            <div class="modal-header thread-modal-header">
+                <div class="thread-modal-title">
+                    <h2>🧵 Ветка писем</h2>
+                    <div id="threadModalSubject" class="thread-subject"></div>
+                </div>
+                <button class="modal-close" onclick="closeThreadModal()">&times;</button>
+            </div>
+            <div id="threadModalBody" class="thread-modal-body"></div>
+        </div>
+    </div>
+
+    <!-- БОКОВАЯ ПАНЕЛЬ С ВЕТКАМИ -->
+    <div class="thread-sidebar hidden" id="threadSidebar">
+        <div class="thread-header">
+            <h2 id="threadTitle">🧵 Ветка</h2>
+            <button class="close-btn" onclick="closeSidebar()">×</button>
+        </div>
+        <div class="thread-content">
+            <div id="messagesList" class="messages-container"></div>
+        </div>
+    </div>
+
+    <style>
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+
+    <!-- JS МОДУЛИ -->
+    <script type="module" src="/frontend/js/main.js"></script>
+    
+    <script>
+        window.closeModal = function() {
+            const modal = document.getElementById('emailModal');
+            if (modal) modal.classList.remove('show');
+        };
+        
+        window.closeThreadModal = function() {
+            const modal = document.getElementById('threadModal');
+            if (modal) modal.classList.remove('show');
+        };
+        
+        window.closeSidebar = function() {
+            const sidebar = document.getElementById('threadSidebar');
+            if (sidebar) sidebar.classList.add('hidden');
+        };
+    </script>
+    <style>
+    /* Временные стили для отладки */
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block !important; }
+    .tab-button.active { background: #2563eb !important; color: white !important; }
+</style>
+</body>
+</html>
