@@ -280,14 +280,39 @@ def add_email(email_data):
             
             email_id = cursor.lastrowid
             
+            # Создаем/обновляем цепочку БЕЗ открывания нового соединения
             if email_data.get('conversation_id'):
-                thread_id = create_or_update_thread(
-                    email_data.get('conversation_id'),
-                    email_data.get('subject', ''),
-                    email_data.get('from', ''),
-                    email_data.get('email', '')
-                )
+                conversation_id = email_data.get('conversation_id')
                 
+                # Проверяем существует ли цепочка
+                cursor.execute('''
+                    SELECT id FROM threads WHERE conversation_id = ?
+                ''', (conversation_id,))
+                existing = cursor.fetchone()
+                
+                if existing:
+                    # Обновляем существующую цепочку
+                    thread_id = existing['id']
+                    cursor.execute('''
+                        UPDATE threads 
+                        SET email_count = (SELECT COUNT(*) FROM email_threads WHERE thread_id = ?),
+                            last_email_date = (SELECT MAX(date_received) FROM emails WHERE thread_id = ?)
+                        WHERE id = ?
+                    ''', (thread_id, thread_id, thread_id))
+                else:
+                    # Создаем новую цепочку
+                    cursor.execute('''
+                        INSERT INTO threads (conversation_id, subject, first_sender, first_sender_email)
+                        VALUES (?, ?, ?, ?)
+                    ''', (
+                        conversation_id,
+                        email_data.get('subject', ''),
+                        email_data.get('from', ''),
+                        email_data.get('email', '')
+                    ))
+                    thread_id = cursor.lastrowid
+                
+                # Связываем письмо с цепочкой
                 cursor.execute('''
                     UPDATE emails SET thread_id = ? WHERE id = ?
                 ''', (thread_id, email_id))
@@ -295,7 +320,7 @@ def add_email(email_data):
                 cursor.execute('''
                     INSERT OR IGNORE INTO email_threads (email_id, thread_id, conversation_id)
                     VALUES (?, ?, ?)
-                ''', (email_id, thread_id, email_data.get('conversation_id')))
+                ''', (email_id, thread_id, conversation_id))
             
             conn.commit()
             return True
@@ -303,6 +328,8 @@ def add_email(email_data):
             return False
         except Exception as e:
             print(f"❌ Ошибка при добавлении письма: {e}")
+            import traceback
+            traceback.print_exc()
             return False
 
 def add_emails(emails_list):
@@ -317,6 +344,18 @@ def add_emails(emails_list):
             skipped_count += 1
     
     return added_count
+
+def get_last_sync_date():
+    """Получить дату последнего письма в БД (для отслеживания синхронизации)"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT MAX(date_received) as last_date FROM emails
+        ''')
+        result = cursor.fetchone()
+        if result and result['last_date']:
+            return result['last_date']
+        return None
 
 def get_emails(page=1, per_page=20, folder=None, sender=None, start_date=None, end_date=None):
     """Получить письма"""

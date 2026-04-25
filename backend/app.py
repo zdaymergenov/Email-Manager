@@ -27,6 +27,9 @@ except ImportError as e:
     def read_emails_by_date(*args, **kwargs):
         return []
 
+# Импортируем очередь для безопасной обработки писем
+from email_queue import start_email_worker, stop_email_worker, queue_email_for_adding
+
 # Определяем правильные пути
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_DIR = os.path.join(BASE_DIR, '..', 'frontend', 'templates')
@@ -42,11 +45,14 @@ if not os.path.exists(TEMPLATE_DIR):
 else:
     print(f"✅ Папка templates найдена: {TEMPLATE_DIR}")
 
-app = Flask(__name__, template_folder=TEMPLATE_DIR, static_folder=STATIC_DIR)
+app = Flask(__name__, template_folder=TEMPLATE_DIR, static_folder=STATIC_DIR, static_url_path='/frontend')
 app.secret_key = 'your-secret-key-change-this'
 
 # Инициализация БД при запуске
 db.init_db()
+
+# Запускаем Email Worker для безопасной обработки писем
+start_email_worker()
 
 def login_required(f):
     @wraps(f)
@@ -72,10 +78,7 @@ def admin_required(f):
 
 # ==================== РАЗДАЧА СТАТИЧЕСКИХ ФАЙЛОВ ====================
 
-@app.route('/frontend/<path:filename>')
-def serve_frontend(filename):
-    """Раздача статических файлов из папки frontend"""
-    return send_from_directory(STATIC_DIR, filename)
+# Статические файлы отдаются автоматически через Flask (static_url_path='/frontend')
 
 # ==================== АУТЕНТИФИКАЦИЯ ====================
 
@@ -299,16 +302,17 @@ def fetch_emails():
         added_count = 0
         skipped_count = 0
         
-        # Добавляем в БД
+        # Добавляем в очередь (не прямо в БД)
         for email in emails:
-            # Добавляем conversation_id если нет
-            if 'conversation_id' not in email:
-                email['conversation_id'] = ''
-            
-            if db.add_email(email):
+            try:
+                queue_email_for_adding(email)
                 added_count += 1
-            else:
+            except Exception as e:
+                print(f"⚠️ Ошибка при добавлении в очередь: {e}")
                 skipped_count += 1
+        
+        print(f"\n✅ {added_count} писем добавлены в очередь на обработку")
+        print(f"   Worker обрабатывает их в фоне...")
         
         end_time = datetime.now()
         duration = int((end_time - start_time).total_seconds())
@@ -465,6 +469,87 @@ def fetch_emails_custom():
             'success': False,
             'error': error_msg,
             'message': 'Ошибка синхронизации. Проверьте, запущен ли Outlook.'
+        }), 500
+
+@app.route('/api/fetch-new-emails', methods=['POST'])
+@admin_required
+def fetch_new_emails():
+    """Загрузить только НОВЫЕ письма (после последней синхронизации)"""
+    if not OUTLOOK_AVAILABLE:
+        return jsonify({
+            'success': False,
+            'error': 'Outlook reader не доступен'
+        }), 503
+    
+    data = request.get_json() or {}
+    scan_mode = data.get('scan_mode', 'inbox')
+    
+    start_time = datetime.now()
+    
+    try:
+        # Получаем дату последнего письма в БД
+        last_sync_date = db.get_last_sync_date()
+        
+        if last_sync_date:
+            # Загружаем письма ПОСЛЕ последней синхронизации
+            if isinstance(last_sync_date, str):
+                last_sync_date = datetime.fromisoformat(last_sync_date)
+            start_date = last_sync_date
+        else:
+            # Если БД пуста, загружаем за последние 30 дней
+            start_date = datetime.now() - timedelta(days=30)
+        
+        end_date = datetime.now()
+        
+        print(f"\n🔄 ЗАГРУЗКА НОВЫХ ПИСЕМ: {start_date} -> {end_date}")
+        print(f"   Режим: {scan_mode}")
+        
+        # Читаем письма из Outlook
+        emails = read_emails_by_date(start_date, end_date, scan_mode)
+        
+        added_count = 0
+        
+        # Добавляем в очередь
+        for email in emails:
+            try:
+                queue_email_for_adding(email)
+                added_count += 1
+            except Exception as e:
+                print(f"⚠️  Ошибка при добавлении в очередь: {e}")
+        
+        print(f"\n✅ {added_count} писем добавлены в очередь на обработку")
+        print(f"   Worker обрабатывает их в фоне...")
+        
+        end_time = datetime.now()
+        duration = int((end_time - start_time).total_seconds())
+        
+        db.log_sync(
+            period_start=start_date.date(),
+            period_end=end_date.date(),
+            added=added_count,
+            skipped=0,
+            failed=0,
+            duration=duration,
+            status='success'
+        )
+        
+        return jsonify({
+            'success': True,
+            'count': added_count,
+            'duration': duration,
+            'message': f'Загружено {added_count} новых писем. Worker обрабатывает в фоне.'
+        })
+        
+    except Exception as e:
+        end_time = datetime.now()
+        duration = int((end_time - start_time).total_seconds())
+        
+        error_msg = str(e)
+        print(f"❌ Ошибка: {error_msg}")
+        
+        return jsonify({
+            'success': False,
+            'error': error_msg
         }), 500
 
 # ==================== ЗАПУСК ====================

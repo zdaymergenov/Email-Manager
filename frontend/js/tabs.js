@@ -6,8 +6,14 @@ export function initTabs() {
     const buttons = document.querySelectorAll('.tab-button');
     console.log(`📑 Найдено кнопок вкладок: ${buttons.length}`);
     
+    if (buttons.length === 0) {
+        console.error('❌ ОШИБКА: Не найдены кнопки вкладок!');
+        return;
+    }
+    
     buttons.forEach(button => {
         button.addEventListener('click', (e) => {
+            e.preventDefault();
             const tabName = e.target.dataset.tab;
             console.log(`🖱️ Клик по вкладке: ${tabName}`);
             switchTab(tabName);

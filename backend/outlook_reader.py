@@ -219,6 +219,15 @@ def read_folder(folder, start_date, end_date, max_count=0):
             attachments_count = get_attachments_count(item)
             importance = get_importance(item)
             is_read = get_is_read(item)
+            
+            # Stage 3: Conversation ID для создания цепочек
+            conversation_id = ""
+            try:
+                # Outlook имеет встроенный ConversationID
+                conversation_id = str(item.ConversationID) if hasattr(item, 'ConversationID') else ""
+            except Exception:
+                # Если ConversationID недоступен, используем тему + отправителя как fallback
+                conversation_id = f"{subject}_{sender}".replace(" ", "_")
 
             # ВАЖНО: используем маленькие буквы чтобы совпадало с database.py!
             emails.append({
@@ -236,6 +245,9 @@ def read_folder(folder, start_date, end_date, max_count=0):
                 "attachments_count": attachments_count,
                 "importance": importance,
                 "is_read": is_read,
+                
+                # Stage 3: Conversation ID для цепочек
+                "conversation_id": conversation_id,
             })
 
             if len(emails) % 50 == 0:

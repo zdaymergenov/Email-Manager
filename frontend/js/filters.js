@@ -160,7 +160,4 @@ export async function clearFilters() {
     console.log('✅ Фильтры очищены');
 }
 
-// ========== ЭКСПОРТЫ ДЛЯ main.js ==========
-export { applyAdvancedFilters, clearFilters };
-
 console.log('✅ filters.js загружен');
