@@ -1,11 +1,10 @@
-// main.js - Главный файл инициализации (ИСПРАВЛЕНО)
+// main.js - Главный файл инициализации (упрощенный)
 
 import { initTabs } from './tabs.js';
 import { setupEmailSearch, loadLetters } from './emails.js';
-import { setupModalClose, openThreadModal } from './modal.js';
-import { setupFilters, applyAdvancedFilters as applyAdvancedFiltersFunc, clearFilters as clearFiltersFunc } from './filters.js';
+import { setupModalClose } from './modal.js';
+import { setupFilters, clearAllFilters as clearAllFiltersFunc } from './filters.js';
 import { loadPositions, loadDepartments, loadContacts } from './contacts.js';
-import { loadStats } from './stats.js';
 
 console.log('🚀 ════════════════════════════════════════════════');
 console.log('🚀 Email Manager Pro - инициализация');
@@ -15,25 +14,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('✅ DOM загружена, начинаю инициализацию...');
     
     try {
-        console.log('🔧 [1/5] Инициализирую модули...');
+        console.log('🔧 [1/3] Инициализирую модули...');
         initTabs();
         setupModalClose();
         setupEmailSearch();
         setupFilters();
         
-        console.log('📥 [2/5] Загружаю данные...');
+        console.log('📥 [2/3] Загружаю опции и данные...');
+        // Сначала контакты (нужно для опций фильтров)
         await Promise.all([
-            loadLetters(),
-            loadStats(),
             loadPositions(),
             loadDepartments(),
             loadContacts()
         ]);
         
-        console.log('🎨 [3/5] Финализирую UI...');
-        displayReadyStatus();
+        // Потом письма (через filters.applyAllFilters)
+        await loadLetters();
         
-        console.log('✅ [4/5] ПОЛНАЯ ИНИЦИАЛИЗАЦИЯ ЗАВЕРШЕНА!');
+        console.log('🎨 [3/3] Финализирую UI...');
+        displayReadyStatus();
+        setDefaultDates();
+        loadSyncLogs();
+        
+        console.log('✅ ИНИЦИАЛИЗАЦИЯ ЗАВЕРШЕНА!');
         
     } catch (error) {
         console.error('❌ КРИТИЧЕСКАЯ ОШИБКА ИНИЦИАЛИЗАЦИИ:', error);
@@ -42,8 +45,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function displayReadyStatus() {
-    console.log('✅ Все модули инициализированы');
-    
     const userInfo = document.getElementById('userInfo');
     if (userInfo) {
         userInfo.textContent = '👤 Готов к работе';
@@ -53,95 +54,18 @@ function displayReadyStatus() {
     }
 }
 
-window.syncEmails = async function() {
-    console.log('🔄 СИНХРОНИЗАЦИЯ НАЧАТА...');
-    
+// ==================== СБРОС ВСЕХ ФИЛЬТРОВ ====================
+
+window.clearAllFilters = async function() {
+    console.log('🔄 СБРОС ВСЕХ ФИЛЬТРОВ...');
     try {
-        const response = await fetch('/api/fetch-emails', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ period: '24h', scan_mode: 'inbox' })
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
-        
-        const data = await response.json();
-        console.log('✅ Синхронизация завершена:', data);
-        
-        alert(`✅ Синхронизация завершена!\nЗагружено писем: ${data.count || 0}`);
-        
-        const { loadLetters } = await import('./emails.js');
-        await loadLetters();
-        
+        await clearAllFiltersFunc();
     } catch (error) {
-        console.error('❌ Ошибка синхронизации:', error);
-        alert(`❌ Ошибка синхронизации:\n${error.message}`);
+        console.error('❌ Ошибка сброса фильтров:', error);
     }
 };
 
-window.clearDB = async function() {
-    if (!confirm('⚠️ Это удалит ВСЕ письма! Продолжить?')) {
-        return;
-    }
-    
-    if (!confirm('⚠️ ПОСЛЕДНЕЕ ПРЕДУПРЕЖДЕНИЕ!\nВы уверены? Это действие необратимо!')) {
-        return;
-    }
-    
-    console.log('🗑️ ОЧИСТКА БД НАЧАТА...');
-    
-    try {
-        const response = await fetch('/api/clear-db', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
-        
-        const data = await response.json();
-        console.log('✅ БД очищена:', data);
-        alert('✅ БД успешно очищена!\nСтраница перезагружается...');
-        
-        setTimeout(() => location.reload(), 1000);
-        
-    } catch (error) {
-        console.error('❌ Ошибка очистки БД:', error);
-        alert(`❌ Ошибка очистки БД:\n${error.message}`);
-    }
-};
-
-window.performSearch = async function() {
-    const query = document.getElementById('searchQuery').value;
-    
-    if (query.length < 2) {
-        alert('🔍 Введите минимум 2 символа для поиска');
-        return;
-    }
-    
-    console.log(`🔍 ПОИСК: "${query}"`);
-    
-    try {
-        const response = await fetch(`/api/search?query=${encodeURIComponent(query)}`);
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
-        
-        const data = await response.json();
-        const { displayEmails } = await import('./emails.js');
-        displayEmails(data.emails || [], 'searchResults');
-        
-        console.log(`✅ Найдено ${data.emails?.length || 0} писем`);
-        
-    } catch (error) {
-        console.error('❌ Ошибка поиска:', error);
-        alert(`❌ Ошибка поиска:\n${error.message}`);
-    }
-};
+// ==================== СИНХРОНИЗАЦИЯ ====================
 
 function setDefaultDates() {
     const endDate = new Date();
@@ -228,8 +152,6 @@ async function performSync(url, data) {
             setTimeout(async () => {
                 const { loadLetters } = await import('./emails.js');
                 await loadLetters();
-                const { loadStats } = await import('./stats.js');
-                await loadStats();
                 await loadSyncLogs();
             }, 1000);
             
@@ -264,6 +186,39 @@ async function performSync(url, data) {
     }
 }
 
+window.clearDB = async function() {
+    if (!confirm('⚠️ Это удалит ВСЕ письма! Продолжить?')) {
+        return;
+    }
+    
+    if (!confirm('⚠️ ПОСЛЕДНЕЕ ПРЕДУПРЕЖДЕНИЕ!\nВы уверены? Это действие необратимо!')) {
+        return;
+    }
+    
+    console.log('🗑️ ОЧИСТКА БД НАЧАТА...');
+    
+    try {
+        const response = await fetch('/api/clear-db', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('✅ БД очищена:', data);
+        alert('✅ БД успешно очищена!\nСтраница перезагружается...');
+        
+        setTimeout(() => location.reload(), 1000);
+        
+    } catch (error) {
+        console.error('❌ Ошибка очистки БД:', error);
+        alert(`❌ Ошибка очистки БД:\n${error.message}`);
+    }
+};
+
 async function loadSyncLogs() {
     try {
         const response = await fetch('/api/sync-logs?limit=10');
@@ -272,7 +227,7 @@ async function loadSyncLogs() {
         const container = document.getElementById('syncLogsList');
         if (container && data.logs) {
             if (data.logs.length === 0) {
-                container.innerHTML = '<div class="stat-row">Нет записей о синхронизации</div>';
+                container.innerHTML = '<div style="padding: 10px; color: #666;">Нет записей о синхронизации</div>';
                 return;
             }
             
@@ -281,7 +236,7 @@ async function loadSyncLogs() {
                 const date = new Date(log.sync_date).toLocaleString('ru-RU');
                 
                 return `
-                    <div class="stat-row">
+                    <div style="display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid var(--border);">
                         <div>${statusIcon} ${date}</div>
                         <div>
                             <strong>+${log.emails_added || 0}</strong> писем
@@ -296,27 +251,132 @@ async function loadSyncLogs() {
     }
 }
 
-window.applyAdvancedFilters = async function() {
-    console.log('🔎 ПРИМЕНЕНИЕ ПРОДВИНУТЫХ ФИЛЬТРОВ...');
+// ==================== УПРАВЛЕНИЕ КОНТАКТАМИ ====================
+
+/**
+ * Загружает статистику контактов
+ */
+async function loadContactsStats() {
     try {
-        await applyAdvancedFiltersFunc();
+        const response = await fetch('/api/contacts/stats');
+        const stats = await response.json();
+        
+        document.getElementById('contactsTotal').textContent = stats.total || 0;
+        document.getElementById('contactsPositions').textContent = stats.positions || 0;
+        document.getElementById('contactsDepartments').textContent = stats.departments || 0;
     } catch (error) {
-        console.error('❌ Ошибка применения фильтров:', error);
-        alert(`❌ Ошибка применения фильтров:\n${error.message}`);
+        console.error('❌ Ошибка загрузки статистики контактов:', error);
+    }
+}
+
+/**
+ * Загрузить контакты из XLSX файла
+ */
+window.uploadContacts = async function() {
+    const fileInput = document.getElementById('contactsFile');
+    const clearCheckbox = document.getElementById('clearExistingContacts');
+    const resultDiv = document.getElementById('contactsUploadResult');
+    
+    if (!fileInput.files || fileInput.files.length === 0) {
+        alert('Выберите файл XLSX');
+        return;
+    }
+    
+    const file = fileInput.files[0];
+    const clearExisting = clearCheckbox.checked;
+    
+    // Подтверждение если нужно очистить
+    if (clearExisting) {
+        if (!confirm('⚠️ Все существующие контакты будут УДАЛЕНЫ перед загрузкой. Продолжить?')) {
+            return;
+        }
+    }
+    
+    resultDiv.innerHTML = `
+        <div style="background: #e0f2fe; padding: 12px; border-radius: 6px; margin-top: 10px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <div class="spinner" style="width: 16px; height: 16px; border: 2px solid #cbd5e1; border-top-color: #0ea5e9; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                <span>📤 Загружаю файл...</span>
+            </div>
+        </div>
+    `;
+    
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('clear_existing', clearExisting ? 'true' : 'false');
+        
+        const response = await fetch('/api/contacts/upload', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            resultDiv.innerHTML = `
+                <div style="background: #d1fae5; border: 1px solid #6ee7b7; padding: 15px; border-radius: 6px; margin-top: 10px;">
+                    <strong style="color: #065f46;">✅ Контакты успешно загружены!</strong>
+                    <div style="margin-top: 8px; color: #047857;">
+                        📥 Добавлено: <strong>${result.added}</strong><br>
+                        ⏭️ Пропущено (без email): <strong>${result.skipped}</strong><br>
+                        ❌ Ошибок: <strong>${result.errors}</strong><br>
+                        💼 Должностей в БД: <strong>${result.positions}</strong><br>
+                        🏢 Отделов в БД: <strong>${result.departments}</strong>
+                    </div>
+                </div>
+            `;
+            
+            // Обновляем статистику и фильтры
+            await loadContactsStats();
+            
+            // Перезагружаем опции фильтров на главной
+            const { setupFilters } = await import('./filters.js');
+            // Пересоздаём список опций
+            window.location.reload();
+        } else {
+            resultDiv.innerHTML = `
+                <div style="background: #fee2e2; border: 1px solid #fca5a5; padding: 15px; border-radius: 6px; margin-top: 10px;">
+                    <strong style="color: #991b1b;">❌ Ошибка загрузки</strong><br>
+                    <span style="color: #b91c1c;">${result.error || 'Неизвестная ошибка'}</span>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('❌ Ошибка загрузки:', error);
+        resultDiv.innerHTML = `
+            <div style="background: #fee2e2; border: 1px solid #fca5a5; padding: 15px; border-radius: 6px; margin-top: 10px;">
+                <strong style="color: #991b1b;">❌ Ошибка</strong><br>
+                <span style="color: #b91c1c;">${error.message}</span>
+            </div>
+        `;
     }
 };
 
-window.clearFilters = async function() {
-    console.log('🔄 ОЧИСТКА ФИЛЬТРОВ...');
+/**
+ * Удалить все контакты
+ */
+window.clearContacts = async function() {
+    if (!confirm('⚠️ Это удалит ВСЕ контакты! Продолжить?')) return;
+    if (!confirm('⚠️ ПОСЛЕДНЕЕ ПРЕДУПРЕЖДЕНИЕ! Действие необратимо!')) return;
+    
     try {
-        await clearFiltersFunc();
+        const response = await fetch('/api/contacts/clear', {
+            method: 'POST'
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(`✅ Удалено ${result.deleted} контактов`);
+            await loadContactsStats();
+            window.location.reload();
+        } else {
+            alert('❌ Ошибка очистки');
+        }
     } catch (error) {
-        console.error('❌ Ошибка очистки фильтров:', error);
-        alert(`❌ Ошибка очистки фильтров:\n${error.message}`);
+        console.error('❌ Ошибка:', error);
+        alert(`❌ Ошибка: ${error.message}`);
     }
 };
-
-setDefaultDates();
-loadSyncLogs();
 
 console.log('✅ main.js загружен и готов к работе');

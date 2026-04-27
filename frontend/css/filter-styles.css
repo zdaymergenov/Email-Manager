@@ -1,0 +1,508 @@
+/* filter-styles.css - Стили для системы фильтров */
+
+/* ============ ОБЩИЕ СТИЛИ ============ */
+
+.filter-builder,
+.filter-manager,
+.quick-filters {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.filter-builder-header,
+.filter-manager-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    border-bottom: 2px solid #e9ecef;
+    padding-bottom: 15px;
+}
+
+.filter-builder-header h3,
+.filter-manager-header h3 {
+    margin: 0;
+    color: #2c3e50;
+    font-size: 18px;
+}
+
+/* ============ КОНСТРУКТОР ФИЛЬТРОВ ============ */
+
+.filter-name-input {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    width: 250px;
+    transition: border-color 0.3s;
+}
+
+.filter-name-input:focus {
+    outline: none;
+    border-color: #4CAF50;
+    box-shadow: 0 0 5px rgba(76, 175, 80, 0.3);
+}
+
+.filter-conditions {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 15px;
+    margin-bottom: 15px;
+}
+
+.condition {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.condition:last-child {
+    margin-bottom: 0;
+}
+
+.field-select,
+.operator-select,
+.value-input,
+.value-select {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    background: white;
+    cursor: pointer;
+    transition: border-color 0.3s;
+}
+
+.field-select,
+.operator-select {
+    min-width: 150px;
+}
+
+.value-input,
+.value-select {
+    flex: 1;
+    min-width: 200px;
+}
+
+.field-select:focus,
+.operator-select:focus,
+.value-input:focus,
+.value-select:focus {
+    outline: none;
+    border-color: #4CAF50;
+    box-shadow: 0 0 5px rgba(76, 175, 80, 0.2);
+}
+
+.btn-remove {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background: #f44336;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background 0.3s;
+}
+
+.btn-remove:hover {
+    background: #d32f2f;
+}
+
+/* ============ КНОПКИ ============ */
+
+.btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-weight: 500;
+}
+
+.btn-small {
+    padding: 6px 12px;
+    font-size: 12px;
+}
+
+.btn-primary {
+    background: #4CAF50;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #45a049;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
+}
+
+.btn-success {
+    background: #2196F3;
+    color: white;
+}
+
+.btn-success:hover {
+    background: #0b7dda;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(33, 150, 243, 0.3);
+}
+
+.btn-info {
+    background: #17a2b8;
+    color: white;
+}
+
+.btn-info:hover {
+    background: #138496;
+}
+
+.btn-default {
+    background: #6c757d;
+    color: white;
+}
+
+.btn-default:hover {
+    background: #5a6268;
+}
+
+.btn-danger {
+    background: #f44336;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #d32f2f;
+}
+
+.filter-builder-actions,
+.filter-builder-buttons,
+.filter-manager-controls {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 15px;
+}
+
+/* ============ ПРЕДПРОСМОТР ФИЛЬТРА ============ */
+
+.filter-preview {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 15px;
+    margin-top: 15px;
+}
+
+.preview {
+    padding: 0;
+}
+
+.preview strong {
+    display: block;
+    margin-bottom: 10px;
+    color: #2c3e50;
+}
+
+.conditions-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.condition-tag {
+    background: #e3f2fd;
+    color: #1976d2;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    border: 1px solid #1976d2;
+}
+
+.preview-result {
+    padding: 10px;
+    background: #e8f5e9;
+    color: #2e7d32;
+    border-radius: 4px;
+    border-left: 4px solid #4CAF50;
+    font-weight: 500;
+}
+
+/* ============ МЕНЕДЖЕР ФИЛЬТРОВ ============ */
+
+.filter-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 15px;
+}
+
+.filter-items {
+    display: contents;
+}
+
+.filter-item {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 15px;
+    transition: all 0.3s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.filter-item:hover {
+    border-color: #4CAF50;
+    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.2);
+    transform: translateY(-2px);
+}
+
+.filter-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    margin-bottom: 10px;
+}
+
+.filter-item-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #2c3e50;
+    font-size: 16px;
+}
+
+.filter-item-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    text-align: right;
+    font-size: 12px;
+    color: #666;
+}
+
+.usage-count,
+.last-used {
+    display: block;
+}
+
+.filter-item-description {
+    color: #666;
+    font-size: 14px;
+    margin-bottom: 10px;
+    font-style: italic;
+}
+
+.filter-item-config {
+    margin-bottom: 12px;
+}
+
+.config-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 12px;
+}
+
+.config-item {
+    background: #f5f5f5;
+    padding: 4px 8px;
+    border-radius: 3px;
+    border: 1px solid #e0e0e0;
+}
+
+.config-item strong {
+    color: #4CAF50;
+}
+
+.filter-item-buttons {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.filter-item-buttons .btn {
+    flex: 1;
+    min-width: 100px;
+}
+
+.empty-state {
+    text-align: center;
+    color: #999;
+    padding: 40px 20px;
+    font-size: 16px;
+}
+
+/* ============ БЫСТРЫЕ ФИЛЬТРЫ ============ */
+
+.quick-filters {
+    padding: 15px;
+}
+
+.quick-filters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+}
+
+.quick-filter-btn {
+    padding: 12px 16px;
+    background: white;
+    border: 2px solid #ddd;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 500;
+    color: #2c3e50;
+}
+
+.quick-filter-btn:hover {
+    border-color: #4CAF50;
+    background: #f0f8f0;
+    transform: translateY(-2px);
+}
+
+.quick-filter-btn.active {
+    background: #4CAF50;
+    color: white;
+    border-color: #4CAF50;
+}
+
+/* ============ СООБЩЕНИЯ И УВЕДОМЛЕНИЯ ============ */
+
+.filter-message {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #4CAF50;
+    color: white;
+    padding: 15px 20px;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+    z-index: 1000;
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(400px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* ============ RESPONSIVE ============ */
+
+@media (max-width: 768px) {
+    .filter-builder,
+    .filter-manager,
+    .quick-filters {
+        padding: 15px;
+    }
+
+    .filter-builder-header,
+    .filter-manager-header {
+        flex-direction: column;
+        gap: 15px;
+        align-items: flex-start;
+    }
+
+    .filter-name-input {
+        width: 100%;
+    }
+
+    .condition {
+        flex-direction: column;
+    }
+
+    .field-select,
+    .operator-select,
+    .value-input,
+    .value-select {
+        width: 100%;
+    }
+
+    .field-select,
+    .operator-select {
+        min-width: 100%;
+    }
+
+    .filter-list {
+        grid-template-columns: 1fr;
+    }
+
+    .quick-filters-grid {
+        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    }
+
+    .filter-item-buttons {
+        flex-direction: column;
+    }
+
+    .filter-item-buttons .btn {
+        width: 100%;
+    }
+}
+
+/* ============ ПЕЧАТЬ ============ */
+
+@media print {
+    .filter-builder,
+    .filter-manager-controls,
+    .filter-item-buttons {
+        display: none;
+    }
+}
+
+/* ============ ТЕМНАЯ ТЕМА (ОПЦИОНАЛЬНО) ============ */
+
+@media (prefers-color-scheme: dark) {
+    .filter-builder,
+    .filter-manager,
+    .quick-filters {
+        background: #2c3e50;
+        color: #ecf0f1;
+    }
+
+    .filter-builder-header h3,
+    .filter-manager-header h3 {
+        color: #ecf0f1;
+    }
+
+    .filter-conditions,
+    .filter-preview,
+    .filter-item {
+        background: #34495e;
+        border-color: #555;
+        color: #ecf0f1;
+    }
+
+    .field-select,
+    .operator-select,
+    .value-input,
+    .value-select {
+        background: #2c3e50;
+        color: #ecf0f1;
+        border-color: #555;
+    }
+
+    .config-item {
+        background: #2c3e50;
+        border-color: #555;
+    }
+
+    .filter-item-description {
+        color: #bdc3c7;
+    }
+}

@@ -25,10 +25,34 @@ export function getAvatarColor(index) {
 
 /**
  * Форматировать дату
+ * Поддерживает форматы:
+ *   - "26.04.2026 14:30" (русский формат из БД)
+ *   - "2026-04-26T14:30:00" (ISO)
+ *   - "2026-04-26 14:30:00" (SQL)
  */
 export function formatDate(dateStr) {
     if (!dateStr) return '';
-    const date = new Date(dateStr);
+    
+    // Если строка уже в русском формате - возвращаем как есть
+    // Формат: "DD.MM.YYYY HH:MM" или "DD.MM.YYYY"
+    const russianFormat = /^\d{2}\.\d{2}\.\d{4}(\s\d{2}:\d{2})?$/;
+    if (russianFormat.test(dateStr)) {
+        return dateStr;
+    }
+    
+    // Пробуем парсить как ISO/SQL дату
+    let date = new Date(dateStr);
+    
+    // Если "Invalid Date" - пробуем заменить пробел на T (для SQL формата)
+    if (isNaN(date.getTime()) && typeof dateStr === 'string') {
+        date = new Date(dateStr.replace(' ', 'T'));
+    }
+    
+    // Если все еще невалидно - возвращаем исходную строку
+    if (isNaN(date.getTime())) {
+        return dateStr;
+    }
+    
     return date.toLocaleDateString('ru-RU', {
         year: 'numeric',
         month: '2-digit',

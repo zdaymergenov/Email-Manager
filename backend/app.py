@@ -30,6 +30,10 @@ except ImportError as e:
 # Импортируем очередь для безопасной обработки писем
 from email_queue import start_email_worker, stop_email_worker, queue_email_for_adding
 
+# ==================== СИСТЕМА ФИЛЬТРОВ v2 ====================
+from filters_api import register_filters_blueprint
+from filters_system_v2 import init_filter_tables
+
 # Определяем правильные пути
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_DIR = os.path.join(BASE_DIR, '..', 'frontend', 'templates')
@@ -50,6 +54,47 @@ app.secret_key = 'your-secret-key-change-this'
 
 # Инициализация БД при запуске
 db.init_db()
+
+# ==================== ИНИЦИАЛИЗАЦИЯ СИСТЕМЫ ФИЛЬТРОВ v2 ====================
+init_filter_tables()
+register_filters_blueprint(app)
+print("✅ Система фильтров v2 инициализирована")
+
+# ==================== АВТОЗАГРУЗКА КОНТАКТОВ ИЗ XLSX ====================
+def auto_import_contacts():
+    """Автоматически загружает контакты из data/employees.xlsx если БД пустая"""
+    try:
+        from contacts_handler import get_contacts_stats, load_from_xlsx
+        
+        stats = get_contacts_stats()
+        if stats['total'] > 0:
+            print(f"📊 Контакты уже в БД: {stats['total']} записей, {stats['positions']} должностей, {stats['departments']} отделов")
+            return
+        
+        # Ищем файл с контактами
+        possible_paths = [
+            os.path.join(BASE_DIR, '..', 'data', 'employees.xlsx'),
+            os.path.join(BASE_DIR, 'data', 'employees.xlsx'),
+            os.path.join(BASE_DIR, '..', 'data', 'все_сотрудники.xlsx'),
+        ]
+        
+        for xlsx_path in possible_paths:
+            if os.path.exists(xlsx_path):
+                print(f"📥 Найден файл контактов: {xlsx_path}")
+                print(f"📥 Автозагрузка контактов в БД...")
+                result = load_from_xlsx(xlsx_path)
+                if result.get('success'):
+                    print(f"✅ Загружено: {result['added']} контактов")
+                    print(f"   📊 Должностей: {result['positions']}, Отделов: {result['departments']}")
+                else:
+                    print(f"⚠️ Ошибка автозагрузки: {result.get('error')}")
+                return
+        
+        print("ℹ️ Файл контактов не найден (data/employees.xlsx). Загрузите через UI.")
+    except Exception as e:
+        print(f"⚠️ Ошибка автозагрузки контактов: {e}")
+
+auto_import_contacts()
 
 # Запускаем Email Worker для безопасной обработки писем
 start_email_worker()
@@ -242,6 +287,75 @@ def get_departments_api():
     """Получить все отделы"""
     departments = get_all_departments()
     return jsonify({'departments': departments})
+
+# ==================== API: ПАПКИ И КОНТАКТЫ ====================
+
+@app.route('/api/folders')
+@login_required
+def get_folders_api():
+    """Получить все папки из БД (с количеством писем)"""
+    from contacts_handler import get_all_folders_from_emails
+    folders = get_all_folders_from_emails()
+    return jsonify({'folders': folders})
+
+@app.route('/api/contacts/stats')
+@login_required
+def get_contacts_stats_api():
+    """Статистика по контактам"""
+    from contacts_handler import get_contacts_stats
+    stats = get_contacts_stats()
+    return jsonify(stats)
+
+@app.route('/api/contacts/upload', methods=['POST'])
+@login_required
+def upload_contacts_xlsx():
+    """Загрузить контакты из XLSX файла"""
+    from contacts_handler import load_from_xlsx
+    import tempfile
+    
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'Файл не загружен'}), 400
+    
+    file = request.files['file']
+    if not file.filename:
+        return jsonify({'success': False, 'error': 'Имя файла пустое'}), 400
+    
+    if not file.filename.lower().endswith(('.xlsx', '.xls')):
+        return jsonify({'success': False, 'error': 'Только XLSX/XLS файлы'}), 400
+    
+    # Параметр - очищать ли существующие контакты
+    clear_existing = request.form.get('clear_existing', 'false').lower() == 'true'
+    
+    # Сохраняем файл во временную директорию
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp:
+            file.save(tmp.name)
+            tmp_path = tmp.name
+        
+        # Загружаем контакты
+        result = load_from_xlsx(tmp_path, clear_existing=clear_existing)
+        
+        # Удаляем временный файл
+        try:
+            os.remove(tmp_path)
+        except:
+            pass
+        
+        return jsonify(result)
+    
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/contacts/clear', methods=['POST'])
+@login_required
+def clear_contacts_api():
+    """Удалить все контакты"""
+    from contacts_handler import clear_all_contacts
+    deleted = clear_all_contacts()
+    return jsonify({
+        'success': True,
+        'deleted': deleted
+    })
 
 # ==================== API: СТАТИСТИКА ====================
 

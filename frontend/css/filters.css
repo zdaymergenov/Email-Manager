@@ -1,4 +1,6 @@
-/* filters.css - Стили фильтров */
+/* filters.css - Стили фильтров (v2 - расширенные) */
+
+/* ============ ВЕРХНЯЯ ПАНЕЛЬ ФИЛЬТРОВ ============ */
 
 .filters-bar {
     display: flex;
@@ -9,6 +11,7 @@
     background: white;
     border-radius: 8px;
     border: 1px solid var(--border);
+    align-items: flex-end;
 }
 
 .filter-group {
@@ -16,6 +19,7 @@
     flex-direction: column;
     gap: 6px;
     min-width: 200px;
+    flex: 1;
 }
 
 .filter-label {
@@ -35,6 +39,7 @@
     transition: all 0.3s;
     background: white;
     color: var(--text-primary);
+    width: 100%;
 }
 
 .filter-select:focus {
@@ -47,14 +52,25 @@
     border-color: var(--primary);
 }
 
+/* ============ CHECKBOX И RADIO ============ */
+
 .filter-checkbox {
     display: flex;
     gap: 8px;
     align-items: center;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.filter-checkbox:hover {
+    background: rgba(37, 99, 235, 0.05);
 }
 
 .filter-checkbox input {
     cursor: pointer;
+    accent-color: var(--primary);
 }
 
 .filter-checkbox label {
@@ -62,11 +78,20 @@
     font-size: 13px;
 }
 
+/* Когда radio выбран - подсветка */
+.filter-checkbox:has(input:checked) {
+    background: rgba(37, 99, 235, 0.1);
+    border-left: 3px solid var(--primary);
+}
+
+/* ============ АКТИВНЫЕ ФИЛЬТРЫ (ТЕГИ) ============ */
+
 .active-filters {
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
     margin-top: 12px;
+    width: 100%;
 }
 
 .filter-tag {
@@ -78,9 +103,141 @@
     display: flex;
     align-items: center;
     gap: 6px;
+    animation: tagFadeIn 0.3s ease-out;
 }
 
 .filter-tag-close {
     cursor: pointer;
     font-weight: bold;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+}
+
+.filter-tag-close:hover {
+    background: rgba(255, 255, 255, 0.4);
+}
+
+@keyframes tagFadeIn {
+    from {
+        opacity: 0;
+        transform: translateX(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* ============ БЫСТРЫЕ ФИЛЬТРЫ (НОВОЕ В V2) ============ */
+
+.quick-filters-bar {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    background: white;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+.quick-filter-btn {
+    padding: 8px 16px;
+    background: white;
+    border: 2px solid var(--border);
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.quick-filter-btn:hover {
+    border-color: var(--primary);
+    background: rgba(37, 99, 235, 0.05);
+    transform: translateY(-1px);
+}
+
+.quick-filter-btn.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+/* ============ КНОПКА СОХРАНЕНИЯ ФИЛЬТРА (НОВОЕ В V2) ============ */
+
+.save-filter-btn {
+    padding: 8px 16px;
+    background: #10b981;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.3s;
+    margin-left: auto;
+}
+
+.save-filter-btn:hover {
+    background: #059669;
+    transform: translateY(-1px);
+}
+
+.save-filter-btn:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* ============ СООБЩЕНИЕ "НИЧЕГО НЕ НАЙДЕНО" ============ */
+
+.no-results {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-secondary);
+}
+
+.no-results h3 {
+    font-size: 18px;
+    margin-bottom: 8px;
+}
+
+.no-results p {
+    font-size: 14px;
+}
+
+/* ============ RESPONSIVE ============ */
+
+@media (max-width: 768px) {
+    .filters-bar {
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    .filter-group {
+        min-width: 100%;
+        width: 100%;
+    }
+    
+    .quick-filters-bar {
+        flex-direction: column;
+    }
+    
+    .quick-filter-btn {
+        width: 100%;
+        text-align: center;
+    }
+    
+    .save-filter-btn {
+        margin-left: 0;
+        width: 100%;
+    }
 }

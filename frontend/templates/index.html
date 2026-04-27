@@ -14,7 +14,6 @@
     <link rel="stylesheet" href="/frontend/css/sidebar.css">
     <link rel="stylesheet" href="/frontend/css/messages.css">
     <link rel="stylesheet" href="/frontend/css/filters.css">
-    <link rel="stylesheet" href="/frontend/css/stats.css">
     <link rel="stylesheet" href="/frontend/css/responsive.css">
 </head>
 <body>
@@ -34,117 +33,124 @@
         <div class="tabs-container">
             <div class="tabs-header">
                 <button class="tab-button active" data-tab="letters">📬 Письма</button>
-                <button class="tab-button" data-tab="search">🔍 Поиск</button>
-                <button class="tab-button" data-tab="stats">📊 Статистика</button>
-                <button class="tab-button" data-tab="filters">🔎 Фильтры</button>
+                <button class="tab-button" data-tab="reports">📊 Отчеты</button>
                 <button class="tab-button" data-tab="sync">⚙️ Синхронизация</button>
             </div>
 
             <div class="tabs-content">
-                <!-- ТАБ: ПИСЬМА -->
+                <!-- ============ ТАБ: ПИСЬМА ============ -->
                 <div id="letters" class="tab-pane active">
                     <h2 class="section-title">📬 Все письма</h2>
                     
+                    <!-- ПАНЕЛЬ ФИЛЬТРОВ -->
                     <div class="filters-bar">
+                        <!-- Должность -->
                         <div class="filter-group">
-                            <label class="filter-label">Должность</label>
+                            <label class="filter-label">💼 Должность</label>
                             <select id="filterPosition" class="filter-select">
                                 <option value="">Все должности</option>
                             </select>
                         </div>
+                        
+                        <!-- Отдел -->
                         <div class="filter-group">
-                            <label class="filter-label">Отдел</label>
+                            <label class="filter-label">🏢 Отдел</label>
                             <select id="filterDepartment" class="filter-select">
                                 <option value="">Все отделы</option>
                             </select>
                         </div>
+                        
+                        <!-- Папка -->
                         <div class="filter-group">
-                            <label class="filter-label">Папка</label>
+                            <label class="filter-label">📁 Папка</label>
                             <select id="filterFolder" class="filter-select">
                                 <option value="">Все папки</option>
-                                <option value="Входящие">📥 Входящие</option>
-                                <option value="Отправленные">📤 Отправленные</option>
-                                <option value="Черновики">📝 Черновики</option>
-                                <option value="Спам">🚫 Спам</option>
+                                <!-- Папки загружаются из БД через JS -->
+                            </select>
+                        </div>
+                        
+                        <!-- Период -->
+                        <div class="filter-group">
+                            <label class="filter-label">📅 Период</label>
+                            <select id="filterPeriod" class="filter-select">
+                                <option value="">Все время</option>
+                                <option value="0">Сегодня</option>
+                                <option value="7">За неделю</option>
+                                <option value="30">За месяц</option>
+                                <option value="90">За 3 месяца</option>
+                                <option value="365">За год</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Статус прочтения -->
+                        <div class="filter-group">
+                            <label class="filter-label">📌 Статус</label>
+                            <select id="filterStatus" class="filter-select">
+                                <option value="">Все</option>
+                                <option value="unread">Непрочитанные</option>
+                                <option value="read">Прочитанные</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Вложения -->
+                        <div class="filter-group">
+                            <label class="filter-label">📎 Вложения</label>
+                            <select id="filterAttachments" class="filter-select">
+                                <option value="">Все</option>
+                                <option value="yes">С вложениями</option>
+                                <option value="no">Без вложений</option>
                             </select>
                         </div>
                     </div>
                     
+                    <!-- АКТИВНЫЕ ФИЛЬТРЫ (теги) -->
+                    <div class="active-filters" id="activeFiltersTags"></div>
+                    
+                    <!-- ПОИСК + КНОПКИ -->
                     <div class="search-section">
                         <input type="text" class="search-input" id="letterSearch" placeholder="🔍 Поиск по отправителю или теме...">
+                        <button class="btn btn-danger" onclick="clearAllFilters()" style="margin-left: 10px;">
+                            🔄 Сбросить
+                        </button>
                     </div>
                     
+                    <!-- СТАТИСТИКА И КОЛИЧЕСТВО НА СТРАНИЦЕ -->
+                    <div class="results-bar">
+                        <div class="results-count">
+                            📊 Найдено: <strong id="emailsCountTotal">0</strong> писем
+                            <span id="emailsCountShown" style="color: #666; margin-left: 8px;"></span>
+                        </div>
+                        <div class="per-page-selector">
+                            <label for="perPageSelect">Показывать по:</label>
+                            <select id="perPageSelect" class="per-page-select">
+                                <option value="20">20</option>
+                                <option value="50" selected>50</option>
+                                <option value="100">100</option>
+                                <option value="200">200</option>
+                                <option value="500">500</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- СПИСОК ПИСЕМ -->
                     <div id="lettersList" class="emails-list"></div>
-                </div>
-
-                <!-- ТАБ: ПОИСК -->
-                <div id="search" class="tab-pane">
-                    <h2 class="section-title">🔍 Расширенный поиск</h2>
-                    <div class="search-section">
-                        <input type="text" class="search-input" id="searchQuery" placeholder="Введите текст для поиска в теме и теле письма...">
-                        <button class="btn btn-primary" onclick="performSearch()">🔎 Найти</button>
-                    </div>
-                    <div id="searchResults" class="emails-list"></div>
-                </div>
-
-                <!-- ТАБ: СТАТИСТИКА -->
-                <div id="stats" class="tab-pane">
-                    <h2 class="section-title">📊 Статистика</h2>
-                    <div id="statCards" class="stats-grid"></div>
-                    <div class="stats-details">
-                        <h3>📁 По папкам:</h3>
-                        <div id="folderStats"></div>
-                    </div>
-                    <div class="stats-details">
-                        <h3>👥 Топ отправителей:</h3>
-                        <div id="senderStats"></div>
-                    </div>
-                </div>
-
-                <!-- ТАБ: ФИЛЬТРЫ -->
-                <div id="filters" class="tab-pane">
-                    <h2 class="section-title">🔎 Расширенная фильтрация</h2>
                     
-                    <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid var(--border);">
-                        <h3 style="margin-bottom: 15px;">Фильтрация по:</h3>
-                        
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
-                            <div>
-                                <h4 style="margin-bottom: 10px;">💼 По должности</h4>
-                                <div id="positionFilterList" style="display: flex; flex-direction: column; gap: 8px;"></div>
-                            </div>
-                            
-                            <div>
-                                <h4 style="margin-bottom: 10px;">🏢 По отделу</h4>
-                                <div id="departmentFilterList" style="display: flex; flex-direction: column; gap: 8px;"></div>
-                            </div>
-                            
-                            <div>
-                                <h4 style="margin-bottom: 10px;">📁 По папке</h4>
-                                <div style="display: flex; flex-direction: column; gap: 8px;">
-                                    <label class="filter-checkbox">
-                                        <input type="radio" name="folder" value="Входящие"> 📥 Входящие
-                                    </label>
-                                    <label class="filter-checkbox">
-                                        <input type="radio" name="folder" value="Отправленные"> 📤 Отправленные
-                                    </label>
-                                    <label class="filter-checkbox">
-                                        <input type="radio" name="folder" value="Черновики"> 📝 Черновики
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div style="margin-top: 20px;">
-                            <button class="btn btn-primary" onclick="applyAdvancedFilters()" style="margin-right: 10px;">✅ Применить фильтры</button>
-                            <button class="btn btn-danger" onclick="clearFilters()">🔄 Очистить</button>
-                        </div>
-                    </div>
-                    
-                    <div id="filteredResults" class="emails-list"></div>
+                    <!-- ПАГИНАЦИЯ -->
+                    <div id="pagination" class="pagination"></div>
                 </div>
 
-                <!-- ТАБ: СИНХРОНИЗАЦИЯ -->
+                <!-- ============ ТАБ: ОТЧЕТЫ ============ -->
+                <div id="reports" class="tab-pane">
+                    <h2 class="section-title">📊 Отчеты</h2>
+                    
+                    <div style="background: white; padding: 60px 20px; border-radius: 8px; text-align: center; border: 2px dashed var(--border);">
+                        <div style="font-size: 64px; margin-bottom: 20px;">📊</div>
+                        <h3 style="color: var(--text-secondary); margin-bottom: 10px;">Отчеты в разработке</h3>
+                        <p style="color: var(--text-secondary);">Здесь скоро появится функционал отчетов.</p>
+                    </div>
+                </div>
+
+                <!-- ============ ТАБ: СИНХРОНИЗАЦИЯ ============ -->
                 <div id="sync" class="tab-pane">
                     <h2 class="section-title">⚙️ Синхронизация с Outlook</h2>
                     
@@ -226,16 +232,61 @@
                     <div id="syncResult" style="margin-bottom: 20px;"></div>
                     
                     <!-- История синхронизаций -->
-                    <div class="stats-details">
-                        <h3>📋 История синхронизаций:</h3>
+                    <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px;">
+                        <h3 style="margin-bottom: 15px;">📋 История синхронизаций</h3>
                         <div id="syncLogsList"></div>
+                    </div>
+                    
+                    <!-- Загрузка контактов из XLSX -->
+                    <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid var(--border);">
+                        <h3 style="margin-bottom: 15px;">👥 База сотрудников</h3>
+                        
+                        <!-- Статистика -->
+                        <div id="contactsStats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px;">
+                            <div style="background: #f8fafc; padding: 12px; border-radius: 6px; text-align: center;">
+                                <div style="font-size: 12px; color: #64748b;">Всего контактов</div>
+                                <div id="contactsTotal" style="font-size: 24px; font-weight: bold; color: var(--primary);">—</div>
+                            </div>
+                            <div style="background: #f8fafc; padding: 12px; border-radius: 6px; text-align: center;">
+                                <div style="font-size: 12px; color: #64748b;">Должностей</div>
+                                <div id="contactsPositions" style="font-size: 24px; font-weight: bold; color: var(--primary);">—</div>
+                            </div>
+                            <div style="background: #f8fafc; padding: 12px; border-radius: 6px; text-align: center;">
+                                <div style="font-size: 12px; color: #64748b;">Отделов</div>
+                                <div id="contactsDepartments" style="font-size: 24px; font-weight: bold; color: var(--primary);">—</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Загрузка XLSX -->
+                        <div style="background: #f8fafc; padding: 16px; border-radius: 6px; margin-bottom: 12px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 500;">📥 Загрузить из XLSX</label>
+                            <input type="file" id="contactsFile" accept=".xlsx,.xls" 
+                                   style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 10px; background: white;">
+                            
+                            <label class="filter-checkbox" style="margin-bottom: 12px;">
+                                <input type="checkbox" id="clearExistingContacts">
+                                <span>🗑️ Очистить существующих контактов перед загрузкой</span>
+                            </label>
+                            
+                            <button class="btn btn-primary" onclick="uploadContacts()" style="width: 100%;">
+                                📥 Загрузить контакты
+                            </button>
+                        </div>
+                        
+                        <!-- Результат загрузки -->
+                        <div id="contactsUploadResult"></div>
+                        
+                        <!-- Кнопка очистки -->
+                        <button class="btn btn-danger" onclick="clearContacts()" style="width: 100%; margin-top: 12px;">
+                            🗑️ Удалить все контакты
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- МОДАЛЬНОЕ ОКНО ДЛЯ ПИСЬМА (ОДНО!) -->
+    <!-- МОДАЛЬНОЕ ОКНО ДЛЯ ПИСЬМА -->
     <div id="emailModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -275,6 +326,128 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+        
+        .tab-pane { display: none; }
+        .tab-pane.active { display: block !important; }
+        .tab-button.active { background: #2563eb !important; color: white !important; }
+        
+        /* Стили для search-section с кнопкой сброса */
+        .search-section {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .search-section .search-input {
+            flex: 1;
+        }
+        
+        /* Полоса с количеством и пагинацией */
+        .results-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        
+        .results-count {
+            font-size: 14px;
+            color: var(--text-primary);
+        }
+        
+        .results-count strong {
+            color: var(--primary);
+            font-size: 16px;
+        }
+        
+        .per-page-selector {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .per-page-selector label {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+        
+        .per-page-select {
+            padding: 6px 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        
+        .per-page-select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        
+        /* Пагинация */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            margin-top: 20px;
+            padding: 16px;
+        }
+        
+        .pagination button {
+            padding: 8px 14px;
+            border: 1px solid var(--border);
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            min-width: 40px;
+        }
+        
+        .pagination button:hover:not(:disabled) {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        .pagination button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        
+        .pagination button.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            font-weight: bold;
+        }
+        
+        .pagination .pagination-info {
+            margin: 0 12px;
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+        
+        @media (max-width: 768px) {
+            .results-bar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .pagination button {
+                padding: 6px 10px;
+                font-size: 12px;
+            }
+        }
     </style>
 
     <!-- JS МОДУЛИ -->
@@ -296,11 +469,5 @@
             if (sidebar) sidebar.classList.add('hidden');
         };
     </script>
-    <style>
-    /* Временные стили для отладки */
-    .tab-pane { display: none; }
-    .tab-pane.active { display: block !important; }
-    .tab-button.active { background: #2563eb !important; color: white !important; }
-</style>
 </body>
 </html>
