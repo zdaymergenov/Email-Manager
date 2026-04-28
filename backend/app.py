@@ -666,6 +666,305 @@ def fetch_new_emails():
             'error': error_msg
         }), 500
 
+# ==================== API: ОТЧЁТЫ ====================
+
+@app.route('/api/reports')
+@login_required
+def get_reports():
+    """Данные для вкладки Отчёты — реальные данные из БД"""
+    days = request.args.get('days', 30, type=int)
+    start_str = request.args.get('start')
+    end_str   = request.args.get('end')
+
+    try:
+        if start_str and end_str:
+            start_date = start_str + ' 00:00:00'
+            end_date   = end_str   + ' 23:59:59'
+        else:
+            end_dt     = datetime.now()
+            start_dt   = end_dt - timedelta(days=days)
+            start_date = start_dt.strftime('%Y-%m-%d %H:%M:%S')
+            end_date   = end_dt.strftime('%Y-%m-%d %H:%M:%S')
+    except ValueError:
+        return jsonify({'error': 'Неверный формат даты'}), 400
+
+    with db.get_db() as conn:
+        cursor = conn.cursor()
+
+        # ── Активность по дням ──────────────────────────────────────────
+        cursor.execute('''
+            SELECT DATE(date_received) as day,
+                   COUNT(*) as cnt,
+                   SUM(CASE WHEN is_read = 0 THEN 1 ELSE 0 END) as unread_cnt
+            FROM emails
+            WHERE date_received BETWEEN ? AND ?
+            GROUP BY day ORDER BY day
+        ''', (start_date, end_date))
+        activity = [dict(r) for r in cursor.fetchall()]
+
+        # ── По папкам ───────────────────────────────────────────────────
+        cursor.execute('''
+            SELECT folder, COUNT(*) as cnt
+            FROM emails
+            WHERE date_received BETWEEN ? AND ?
+            GROUP BY folder ORDER BY cnt DESC LIMIT 10
+        ''', (start_date, end_date))
+        folders = [dict(r) for r in cursor.fetchall()]
+
+        # ── Топ отправителей (внешние) ──────────────────────────────────
+        cursor.execute('''
+            SELECT sender_name, sender_email, COUNT(*) as cnt
+            FROM emails
+            WHERE date_received BETWEEN ? AND ?
+            GROUP BY sender_email ORDER BY cnt DESC LIMIT 10
+        ''', (start_date, end_date))
+        senders = [dict(r) for r in cursor.fetchall()]
+
+        # ── Итоги ───────────────────────────────────────────────────────
+        cursor.execute('''
+            SELECT COUNT(*) as total,
+                   SUM(CASE WHEN is_read   = 0 THEN 1 ELSE 0 END) as unread,
+                   SUM(CASE WHEN is_replied = 1 THEN 1 ELSE 0 END) as replied
+            FROM emails
+            WHERE date_received BETWEEN ? AND ?
+        ''', (start_date, end_date))
+        totals = dict(cursor.fetchone())
+
+        # ── Тепловая карта (день недели × час) ─────────────────────────
+        # strftime('%w') = 0(Sun)..6(Sat), переводим в 0(Mon)..6(Sun)
+        cursor.execute('''
+            SELECT
+                CAST(((CAST(strftime('%w', date_received) AS INTEGER) + 6) % 7) AS INTEGER) as dow,
+                CAST(strftime('%H', date_received) AS INTEGER) / 3 as slot,
+                COUNT(*) as cnt
+            FROM emails
+            WHERE date_received BETWEEN ? AND ?
+            GROUP BY dow, slot
+        ''', (start_date, end_date))
+        heatmap_raw = cursor.fetchall()
+        heatmap = [[0]*8 for _ in range(7)]
+        for row in heatmap_raw:
+            d, s, c = int(row['dow']), int(row['slot']), int(row['cnt'])
+            if 0 <= d < 7 and 0 <= s < 8:
+                heatmap[d][s] = c
+
+        # ── Эффективность сотрудников ───────────────────────────────────
+        # Берём всех активных сотрудников у которых заполнен email
+        cursor.execute('''
+            SELECT id, username, full_name, role, email
+            FROM users
+            WHERE is_active = 1 AND email IS NOT NULL AND email != ''
+            ORDER BY full_name
+        ''')
+        users = [dict(r) for r in cursor.fetchall()]
+
+        employees = []
+        for u in users:
+            emp_email = u['email'].lower().strip()
+
+            # письма где сотрудник — отправитель (исходящие, папка Отправленные)
+            cursor.execute('''
+                SELECT COUNT(*) as sent
+                FROM emails
+                WHERE LOWER(sender_email) = ?
+                  AND date_received BETWEEN ? AND ?
+            ''', (emp_email, start_date, end_date))
+            _row = cursor.fetchone()
+            sent = dict(_row)['sent'] if _row else 0
+
+            # входящие (письма НЕ от этого сотрудника, в его ящике)
+            # Приближение: все письма не от него за период
+            cursor.execute('''
+                SELECT
+                    COUNT(*) as received,
+                    SUM(CASE WHEN is_read    = 1 THEN 1 ELSE 0 END) as read_cnt,
+                    SUM(CASE WHEN is_replied = 1 THEN 1 ELSE 0 END) as replied_cnt,
+                    SUM(CASE WHEN importance = 'high' THEN 1 ELSE 0 END) as important_cnt
+                FROM emails
+                WHERE LOWER(sender_email) != ?
+                  AND date_received BETWEEN ? AND ?
+            ''', (emp_email, start_date, end_date))
+            _r = cursor.fetchone()
+            row = dict(_r) if _r else {}
+
+            received     = row.get('received', 0) or 0
+            read_cnt     = row.get('read_cnt',  0) or 0
+            replied_cnt  = row.get('replied_cnt',0) or 0
+            important_cnt= row.get('important_cnt',0) or 0
+
+            # Среднее время ответа: разница между входящим и следующим
+            # исходящим письмом в той же цепочке (thread_id)
+            cursor.execute('''
+                SELECT AVG(diff_hours) as avg_reply_h FROM (
+                    SELECT
+                        (JULIANDAY(out_e.date_received) - JULIANDAY(in_e.date_received)) * 24.0 as diff_hours
+                    FROM emails in_e
+                    JOIN emails out_e
+                        ON in_e.thread_id  = out_e.thread_id
+                       AND LOWER(out_e.sender_email) = ?
+                       AND out_e.date_received > in_e.date_received
+                    WHERE LOWER(in_e.sender_email) != ?
+                      AND in_e.date_received BETWEEN ? AND ?
+                      AND diff_hours > 0
+                      AND diff_hours < 168
+                ) t
+            ''', (emp_email, emp_email, start_date, end_date))
+            avg_row = cursor.fetchone()
+            _avg = dict(avg_row) if avg_row else {}
+            avg_reply_h = round(float(_avg.get('avg_reply_h') or 0), 1) if _avg.get('avg_reply_h') else None
+
+            # Активность по дням (для спарклайна)
+            cursor.execute('''
+                SELECT DATE(date_received) as day, COUNT(*) as cnt
+                FROM emails
+                WHERE LOWER(sender_email) = ?
+                  AND date_received BETWEEN ? AND ?
+                GROUP BY day ORDER BY day
+            ''', (emp_email, start_date, end_date))
+            trend = [r['cnt'] for r in cursor.fetchall()]
+
+            read_rate  = round(read_cnt  / received * 100) if received > 0 else 0
+            reply_rate = round(replied_cnt / received * 100) if received > 0 else 0
+
+            # Score: 35% reply_rate + 35% speed + 30% read_rate
+            if avg_reply_h is not None:
+                speed_score = max(0, 100 - avg_reply_h * 6)
+            else:
+                speed_score = 50  # нет данных — нейтральный
+            score = round(reply_rate * 0.35 + speed_score * 0.35 + read_rate * 0.30)
+
+            employees.append({
+                'id':           u['id'],
+                'name':         u['full_name'] or u['username'],
+                'email':        u['email'],
+                'role':         u['role'],
+                'dept':         'Сотрудники',   # расширить когда будет поле dept
+                'received':     received,
+                'sent':         sent,
+                'replied':      replied_cnt,
+                'read_rate':    read_rate,
+                'reply_rate':   reply_rate,
+                'avg_reply_h':  avg_reply_h,
+                'important':    important_cnt,
+                'score':        score,
+                'trend':        trend[-7:] if trend else [],
+            })
+
+    return jsonify({
+        'activity':     activity,
+        'folders':      folders,
+        'senders':      senders,
+        'heatmap':      heatmap,
+        'total':        totals.get('total',   0) or 0,
+        'total_unread': totals.get('unread',  0) or 0,
+        'total_replied':totals.get('replied', 0) or 0,
+        'employees':    employees,
+        'period': {
+            'start': start_date[:10],
+            'end':   end_date[:10],
+        }
+    })
+
+
+# ==================== API: СОТРУДНИКИ ====================
+
+@app.route('/api/employees')
+@login_required
+def get_employees():
+    """Получить список всех сотрудников"""
+    employees = db.get_all_users_extended()
+    return jsonify({'employees': employees})
+
+
+@app.route('/api/employees/<int:user_id>')
+@login_required
+def get_employee(user_id):
+    """Получить одного сотрудника"""
+    emp = db.get_user_by_id(user_id)
+    if not emp:
+        return jsonify({'error': 'Сотрудник не найден'}), 404
+    return jsonify({'employee': emp})
+
+
+@app.route('/api/employees', methods=['POST'])
+@admin_required
+def create_employee():
+    """Создать нового сотрудника"""
+    data = request.get_json() or {}
+    username  = (data.get('username') or '').strip()
+    password  = (data.get('password') or '').strip()
+    full_name = (data.get('full_name') or '').strip()
+    email     = (data.get('email') or '').strip()
+    role      = data.get('role', 'employee')
+    is_active = bool(data.get('is_active', True))
+    permissions = data.get('permissions', {})
+
+    if not username or not password or not full_name:
+        return jsonify({'success': False, 'error': 'Заполните обязательные поля'}), 400
+    if len(password) < 4:
+        return jsonify({'success': False, 'error': 'Пароль должен быть не менее 4 символов'}), 400
+
+    new_id = db.create_user_extended(
+        username=username, password=password, full_name=full_name,
+        role=role, email=email, is_active=is_active, permissions=permissions
+    )
+    if new_id is None:
+        return jsonify({'success': False, 'error': 'Логин уже занят'}), 409
+
+    return jsonify({'success': True, 'id': new_id})
+
+
+@app.route('/api/employees/<int:user_id>', methods=['PUT'])
+@admin_required
+def update_employee(user_id):
+    """Обновить данные сотрудника"""
+    data = request.get_json() or {}
+    password = (data.get('password') or '').strip() or None
+
+    updated = db.update_user_extended(
+        user_id=user_id,
+        full_name=data.get('full_name'),
+        password=password,
+        role=data.get('role'),
+        email=data.get('email'),
+        is_active=data.get('is_active'),
+        permissions=data.get('permissions'),
+    )
+    if not updated:
+        return jsonify({'success': False, 'error': 'Сотрудник не найден'}), 404
+    return jsonify({'success': True})
+
+
+@app.route('/api/employees/<int:user_id>/toggle', methods=['POST'])
+@admin_required
+def toggle_employee(user_id):
+    """Включить / выключить сотрудника"""
+    new_status = db.toggle_user_active(user_id)
+    if new_status is None:
+        return jsonify({'success': False, 'error': 'Сотрудник не найден'}), 404
+    return jsonify({'success': True, 'is_active': new_status})
+
+
+@app.route('/api/employees/<int:user_id>', methods=['DELETE'])
+@admin_required
+def delete_employee(user_id):
+    """Удалить сотрудника"""
+    # Защита: нельзя удалить себя
+    if session.get('user_id') == user_id:
+        return jsonify({'success': False, 'error': 'Нельзя удалить собственный аккаунт'}), 400
+    deleted = db.delete_user_by_id(user_id)
+    if not deleted:
+        return jsonify({'success': False, 'error': 'Сотрудник не найден'}), 404
+    return jsonify({'success': True})
+
+
+@app.route('/api/employees/stats')
+@login_required
+def employees_stats():
+    """Статистика сотрудников"""
+    return jsonify(db.get_users_stats())
+
+
 # ==================== ЗАПУСК ====================
 
 if __name__ == '__main__':

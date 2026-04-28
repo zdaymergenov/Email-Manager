@@ -578,3 +578,136 @@ def search_emails(query, page=1, per_page=20):
             'per_page': per_page,
             'pages': (total + per_page - 1) // per_page if total > 0 else 1
         }
+
+# ==================== УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ (Сотрудники) ====================
+
+import json as _json
+
+def _ensure_permissions_column():
+    """Добавляет колонку permissions в таблицу users если её нет"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute("ALTER TABLE users ADD COLUMN permissions TEXT DEFAULT '{}'")
+            conn.commit()
+        except Exception:
+            pass  # колонка уже существует
+
+_ensure_permissions_column()
+
+
+def get_all_users_extended():
+    """Получить всех пользователей с расширенными полями"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT id, username, full_name, role, email, is_active, permissions, created_at FROM users ORDER BY id')
+        rows = cursor.fetchall()
+        result = []
+        for row in rows:
+            d = dict(row)
+            try:
+                d['permissions'] = _json.loads(d.get('permissions') or '{}')
+            except Exception:
+                d['permissions'] = {}
+            result.append(d)
+        return result
+
+
+def get_user_by_id(user_id):
+    """Получить пользователя по ID"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT id, username, full_name, role, email, is_active, permissions, created_at FROM users WHERE id = ?', (user_id,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        try:
+            d['permissions'] = _json.loads(d.get('permissions') or '{}')
+        except Exception:
+            d['permissions'] = {}
+        return d
+
+
+def create_user_extended(username, password, full_name, role='employee', email='', is_active=True, permissions=None):
+    """Создать пользователя с правами"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        try:
+            perms_str = _json.dumps(permissions or {})
+            cursor.execute('''
+                INSERT INTO users (username, password, full_name, role, email, is_active, permissions)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (username, password, full_name, role, email, 1 if is_active else 0, perms_str))
+            conn.commit()
+            return cursor.lastrowid
+        except Exception as e:
+            if 'UNIQUE' in str(e):
+                return None
+            raise
+
+
+def update_user_extended(user_id, full_name=None, password=None, role=None, email=None, is_active=None, permissions=None):
+    """Обновить данные пользователя"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        fields, values = [], []
+        if full_name is not None:
+            fields.append('full_name = ?'); values.append(full_name)
+        if password is not None:
+            fields.append('password = ?'); values.append(password)
+        if role is not None:
+            fields.append('role = ?'); values.append(role)
+        if email is not None:
+            fields.append('email = ?'); values.append(email)
+        if is_active is not None:
+            fields.append('is_active = ?'); values.append(1 if is_active else 0)
+        if permissions is not None:
+            fields.append('permissions = ?'); values.append(_json.dumps(permissions))
+        if not fields:
+            return False
+        values.append(user_id)
+        cursor.execute(f"UPDATE users SET {', '.join(fields)} WHERE id = ?", values)
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def toggle_user_active(user_id):
+    """Переключить статус активности пользователя"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT is_active FROM users WHERE id = ?', (user_id,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        new_status = 0 if row['is_active'] else 1
+        cursor.execute('UPDATE users SET is_active = ? WHERE id = ?', (new_status, user_id))
+        conn.commit()
+        return bool(new_status)
+
+
+def delete_user_by_id(user_id):
+    """Удалить пользователя"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM users WHERE id = ?', (user_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def get_users_stats():
+    """Статистика пользователей"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT COUNT(*) as total FROM users')
+        total = cursor.fetchone()['total']
+        cursor.execute("SELECT COUNT(*) as cnt FROM users WHERE role = 'admin'")
+        admins = cursor.fetchone()['cnt']
+        cursor.execute('SELECT COUNT(*) as cnt FROM users WHERE is_active = 1')
+        active = cursor.fetchone()['cnt']
+        return {
+            'total': total,
+            'admins': admins,
+            'employees': total - admins,
+            'active': active,
+        }

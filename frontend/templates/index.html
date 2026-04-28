@@ -15,6 +15,8 @@
     <link rel="stylesheet" href="/frontend/css/messages.css">
     <link rel="stylesheet" href="/frontend/css/filters.css">
     <link rel="stylesheet" href="/frontend/css/responsive.css">
+    <link rel="stylesheet" href="/frontend/css/employees.css">
+    <link rel="stylesheet" href="/frontend/css/reports.css">
 </head>
 <body>
     <!-- НАВБАР -->
@@ -34,6 +36,7 @@
             <div class="tabs-header">
                 <button class="tab-button active" data-tab="letters">📬 Письма</button>
                 <button class="tab-button" data-tab="reports">📊 Отчеты</button>
+                <button class="tab-button" data-tab="employees">👥 Сотрудники</button>
                 <button class="tab-button" data-tab="sync">⚙️ Синхронизация</button>
             </div>
 
@@ -141,12 +144,74 @@
 
                 <!-- ============ ТАБ: ОТЧЕТЫ ============ -->
                 <div id="reports" class="tab-pane">
-                    <h2 class="section-title">📊 Отчеты</h2>
-                    
-                    <div style="background: white; padding: 60px 20px; border-radius: 8px; text-align: center; border: 2px dashed var(--border);">
-                        <div style="font-size: 64px; margin-bottom: 20px;">📊</div>
-                        <h3 style="color: var(--text-secondary); margin-bottom: 10px;">Отчеты в разработке</h3>
-                        <p style="color: var(--text-secondary);">Здесь скоро появится функционал отчетов.</p>
+                    <div class="rep-loading">⏳ Загрузка отчётов...</div>
+                </div>
+
+                <!-- ============ ТАБ: СОТРУДНИКИ ============ -->
+                <div id="employees" class="tab-pane">
+                    <div class="emp-header">
+                        <h2 class="section-title">👥 Сотрудники</h2>
+                        <button class="btn btn-primary" onclick="openAddEmployeeModal()">
+                            ➕ Добавить сотрудника
+                        </button>
+                    </div>
+
+                    <!-- СТАТИСТИКА -->
+                    <div class="emp-stats" id="empStats">
+                        <div class="emp-stat-card">
+                            <div class="emp-stat-icon">👥</div>
+                            <div class="emp-stat-value" id="empTotalCount">—</div>
+                            <div class="emp-stat-label">Всего сотрудников</div>
+                        </div>
+                        <div class="emp-stat-card">
+                            <div class="emp-stat-icon">🛡️</div>
+                            <div class="emp-stat-value" id="empAdminCount">—</div>
+                            <div class="emp-stat-label">Администраторы</div>
+                        </div>
+                        <div class="emp-stat-card">
+                            <div class="emp-stat-icon">👤</div>
+                            <div class="emp-stat-value" id="empEmployeeCount">—</div>
+                            <div class="emp-stat-label">Пользователи</div>
+                        </div>
+                        <div class="emp-stat-card">
+                            <div class="emp-stat-icon">✅</div>
+                            <div class="emp-stat-value" id="empActiveCount">—</div>
+                            <div class="emp-stat-label">Активных</div>
+                        </div>
+                    </div>
+
+                    <!-- ПОИСК И ФИЛЬТРЫ -->
+                    <div class="emp-toolbar">
+                        <input type="text" class="emp-search" id="empSearch" placeholder="🔍 Поиск по имени, логину или email...">
+                        <select class="emp-filter-select" id="empRoleFilter">
+                            <option value="">Все роли</option>
+                            <option value="admin">Администраторы</option>
+                            <option value="employee">Пользователи</option>
+                        </select>
+                        <select class="emp-filter-select" id="empStatusFilter">
+                            <option value="">Все статусы</option>
+                            <option value="1">Активные</option>
+                            <option value="0">Отключённые</option>
+                        </select>
+                    </div>
+
+                    <!-- ТАБЛИЦА СОТРУДНИКОВ -->
+                    <div class="emp-table-wrapper">
+                        <table class="emp-table">
+                            <thead>
+                                <tr>
+                                    <th>Сотрудник</th>
+                                    <th>Логин</th>
+                                    <th>Email</th>
+                                    <th>Роль</th>
+                                    <th>Статус</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody id="empTableBody">
+                                <tr><td colspan="6" class="emp-loading">⏳ Загрузка...</td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
@@ -452,6 +517,8 @@
 
     <!-- JS МОДУЛИ -->
     <script type="module" src="/frontend/js/main.js"></script>
+    <script type="module" src="/frontend/js/employees.js"></script>
+    <script type="module" src="/frontend/js/reports.js"></script>
     
     <script>
         window.closeModal = function() {
@@ -469,5 +536,127 @@
             if (sidebar) sidebar.classList.add('hidden');
         };
     </script>
+    <!-- МОДАЛЬНОЕ ОКНО: ДОБАВИТЬ / РЕДАКТИРОВАТЬ СОТРУДНИКА -->
+    <div id="employeeModal" class="modal">
+        <div class="modal-content emp-modal-content">
+            <div class="modal-header">
+                <h2 id="employeeModalTitle">➕ Новый сотрудник</h2>
+                <button class="modal-close" onclick="closeEmployeeModal()">&times;</button>
+            </div>
+            <div class="emp-modal-body">
+                <input type="hidden" id="empEditId">
+
+                <div class="emp-form-grid">
+                    <div class="emp-form-group">
+                        <label class="emp-form-label">👤 Полное имя *</label>
+                        <input type="text" class="emp-form-input" id="empFullName" placeholder="Иванов Иван Иванович">
+                    </div>
+                    <div class="emp-form-group">
+                        <label class="emp-form-label">🔑 Логин *</label>
+                        <input type="text" class="emp-form-input" id="empUsername" placeholder="ivanov">
+                    </div>
+                    <div class="emp-form-group">
+                        <label class="emp-form-label">📧 Email</label>
+                        <input type="email" class="emp-form-input" id="empEmail" placeholder="ivanov@company.com">
+                    </div>
+                    <div class="emp-form-group">
+                        <label class="emp-form-label">🔒 Пароль *</label>
+                        <input type="password" class="emp-form-input" id="empPassword" placeholder="Минимум 4 символа">
+                        <span class="emp-form-hint" id="empPasswordHint">При редактировании — оставьте пустым, чтобы не менять</span>
+                    </div>
+                    <div class="emp-form-group">
+                        <label class="emp-form-label">🛡️ Роль *</label>
+                        <select class="emp-form-input" id="empRole">
+                            <option value="employee">Пользователь — просмотр писем</option>
+                            <option value="admin">Администратор — полный доступ</option>
+                        </select>
+                    </div>
+                    <div class="emp-form-group">
+                        <label class="emp-form-label">✅ Статус</label>
+                        <select class="emp-form-input" id="empIsActive">
+                            <option value="1">Активен</option>
+                            <option value="0">Отключён</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- ПРАВА ДОСТУПА -->
+                <div class="emp-permissions-section">
+                    <div class="emp-permissions-title">🔐 Права доступа</div>
+                    <div class="emp-permissions-grid">
+                        <label class="emp-perm-item">
+                            <input type="checkbox" class="emp-perm-check" id="permViewEmails" checked>
+                            <div class="emp-perm-info">
+                                <span class="emp-perm-name">📬 Просмотр писем</span>
+                                <span class="emp-perm-desc">Чтение всех писем в системе</span>
+                            </div>
+                        </label>
+                        <label class="emp-perm-item">
+                            <input type="checkbox" class="emp-perm-check" id="permSyncEmails">
+                            <div class="emp-perm-info">
+                                <span class="emp-perm-name">🔄 Синхронизация</span>
+                                <span class="emp-perm-desc">Запуск синхронизации с Outlook</span>
+                            </div>
+                        </label>
+                        <label class="emp-perm-item">
+                            <input type="checkbox" class="emp-perm-check" id="permManageContacts">
+                            <div class="emp-perm-info">
+                                <span class="emp-perm-name">👥 Управление контактами</span>
+                                <span class="emp-perm-desc">Добавление и удаление контактов</span>
+                            </div>
+                        </label>
+                        <label class="emp-perm-item">
+                            <input type="checkbox" class="emp-perm-check" id="permViewReports">
+                            <div class="emp-perm-info">
+                                <span class="emp-perm-name">📊 Отчеты</span>
+                                <span class="emp-perm-desc">Просмотр аналитики и отчётов</span>
+                            </div>
+                        </label>
+                        <label class="emp-perm-item">
+                            <input type="checkbox" class="emp-perm-check" id="permManageFilters">
+                            <div class="emp-perm-info">
+                                <span class="emp-perm-name">🔧 Управление фильтрами</span>
+                                <span class="emp-perm-desc">Создание и редактирование фильтров</span>
+                            </div>
+                        </label>
+                        <label class="emp-perm-item">
+                            <input type="checkbox" class="emp-perm-check" id="permManageUsers">
+                            <div class="emp-perm-info">
+                                <span class="emp-perm-name">🛡️ Управление пользователями</span>
+                                <span class="emp-perm-desc">Добавление и редактирование сотрудников</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div id="empFormError" class="emp-form-error" style="display:none;"></div>
+
+                <div class="emp-modal-actions">
+                    <button class="btn btn-danger" onclick="closeEmployeeModal()">Отмена</button>
+                    <button class="btn btn-primary" onclick="saveEmployee()">💾 Сохранить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- МОДАЛЬНОЕ ОКНО: ПОДТВЕРЖДЕНИЕ УДАЛЕНИЯ -->
+    <div id="deleteEmployeeModal" class="modal">
+        <div class="modal-content emp-delete-modal">
+            <div class="modal-header">
+                <h2>🗑️ Удаление сотрудника</h2>
+                <button class="modal-close" onclick="closeDeleteModal()">&times;</button>
+            </div>
+            <div style="padding: 24px;">
+                <p style="margin-bottom: 8px;">Вы уверены, что хотите удалить сотрудника?</p>
+                <p><strong id="deleteEmployeeName"></strong></p>
+                <p style="margin-top: 12px; color: var(--text-secondary); font-size: 13px;">Это действие нельзя отменить.</p>
+                <div class="emp-modal-actions" style="margin-top: 24px;">
+                    <button class="btn" style="background:#e2e8f0; color:#374151;" onclick="closeDeleteModal()">Отмена</button>
+                    <button class="btn btn-danger" onclick="confirmDeleteEmployee()">🗑️ Удалить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>
