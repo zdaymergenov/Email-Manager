@@ -80,7 +80,7 @@ export function switchTab(tabName) {
     }
     
     // Триггер события для других модулей
-    const event = new CustomEvent('tabChanged', { detail: { tab: tabName } });
+    const event = new CustomEvent('tabChanged', { detail: tabName });
     document.dispatchEvent(event);
 }
 

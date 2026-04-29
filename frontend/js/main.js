@@ -45,13 +45,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function displayReadyStatus() {
-    const userInfo = document.getElementById('userInfo');
-    if (userInfo) {
-        userInfo.textContent = '👤 Готов к работе';
-        setTimeout(() => {
-            userInfo.textContent = '👤 Пользователь';
-        }, 3000);
-    }
+    // Получаем данные пользователя и применяем роле-зависимую видимость
+    fetch('/api/me').then(r => r.json()).then(user => {
+        const userInfo = document.getElementById('userInfo');
+        if (userInfo) userInfo.textContent = `👤 ${user.full_name || user.username}`;
+
+        // Скрываем вкладки только для admin если роль employee
+        if (user.role !== 'admin') {
+            document.querySelectorAll('.admin-only').forEach(el => {
+                el.style.display = 'none';
+            });
+        }
+    }).catch(() => {
+        const userInfo = document.getElementById('userInfo');
+        if (userInfo) userInfo.textContent = '👤 Пользователь';
+    });
 }
 
 // ==================== СБРОС ВСЕХ ФИЛЬТРОВ ====================

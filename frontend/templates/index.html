@@ -17,6 +17,7 @@
     <link rel="stylesheet" href="/frontend/css/responsive.css">
     <link rel="stylesheet" href="/frontend/css/employees.css">
     <link rel="stylesheet" href="/frontend/css/reports.css">
+    <link rel="stylesheet" href="/frontend/css/dispatch.css">
 </head>
 <body>
     <!-- НАВБАР -->
@@ -26,6 +27,7 @@
             <span id="userInfo">👤 Пользователь</span>
         </div>
         <div class="navbar-buttons">
+            <div id="notifBellContainer"></div>
             <a href="/logout" class="btn btn-danger">Выход</a>
         </div>
     </div>
@@ -35,9 +37,11 @@
         <div class="tabs-container">
             <div class="tabs-header">
                 <button class="tab-button active" data-tab="letters">📬 Письма</button>
+                <button class="tab-button" data-tab="workbench">🧩 Рабочее место</button>
+                <button class="tab-button" data-tab="cabinet">👤 Мой кабинет</button>
                 <button class="tab-button" data-tab="reports">📊 Отчеты</button>
                 <button class="tab-button" data-tab="employees">👥 Сотрудники</button>
-                <button class="tab-button" data-tab="sync">⚙️ Синхронизация</button>
+                <button class="tab-button admin-only" data-tab="sync">⚙️ Синхронизация</button>
             </div>
 
             <div class="tabs-content">
@@ -145,6 +149,226 @@
                 <!-- ============ ТАБ: ОТЧЕТЫ ============ -->
                 <div id="reports" class="tab-pane">
                     <div class="rep-loading">⏳ Загрузка отчётов...</div>
+                </div>
+
+                <!-- ============ ТАБ: РАБОЧЕЕ МЕСТО ============ -->
+                <div id="workbench" class="tab-pane">
+                    <!-- Дашборд статистика -->
+                    <div class="dispatch-stats-grid">
+                        <div class="dispatch-stat-card">
+                            <div class="stat-icon">📬</div>
+                            <div class="stat-value" id="wbStatTotal">—</div>
+                            <div class="stat-label">Всего заявок</div>
+                        </div>
+                        <div class="dispatch-stat-card">
+                            <div class="stat-icon">🆕</div>
+                            <div class="stat-value" id="wbStatNew">—</div>
+                            <div class="stat-label">Новые</div>
+                        </div>
+                        <div class="dispatch-stat-card">
+                            <div class="stat-icon">⏳</div>
+                            <div class="stat-value" id="wbStatInProgress">—</div>
+                            <div class="stat-label">В процессе</div>
+                        </div>
+                        <div class="dispatch-stat-card stat-done">
+                            <div class="stat-icon">✅</div>
+                            <div class="stat-value" id="wbStatDone">—</div>
+                            <div class="stat-label">Завершено</div>
+                        </div>
+                        <div class="dispatch-stat-card stat-overdue">
+                            <div class="stat-icon">⚠️</div>
+                            <div class="stat-value" id="wbStatOverdue">—</div>
+                            <div class="stat-label">Просрочено SLA</div>
+                        </div>
+                        <div class="dispatch-stat-card">
+                            <div class="stat-icon">❓</div>
+                            <div class="stat-value" id="wbStatUnassigned">—</div>
+                            <div class="stat-label">Не назначено</div>
+                        </div>
+                    </div>
+
+                    <div class="workbench-layout">
+                        <!-- Левая панель -->
+                        <div class="wb-sidebar">
+                            <div class="wb-sidebar-title">Фильтры</div>
+
+                            <div class="wb-filter-group">
+                                <label class="wb-filter-label">Статус</label>
+                                <div class="wb-status-pills">
+                                    <div class="wb-status-pill active" data-status="">
+                                        <span>Все</span>
+                                        <span class="pill-count">—</span>
+                                    </div>
+                                    <div class="wb-status-pill" data-status="new">
+                                        <span>🆕 Новые</span>
+                                        <span class="pill-count" id="pillNew">—</span>
+                                    </div>
+                                    <div class="wb-status-pill" data-status="in_progress">
+                                        <span>⏳ В процессе</span>
+                                        <span class="pill-count" id="pillInProgress">—</span>
+                                    </div>
+                                    <div class="wb-status-pill" data-status="done">
+                                        <span>✅ Завершено</span>
+                                        <span class="pill-count" id="pillDone">—</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="wb-filter-group">
+                                <label class="wb-filter-label">Категория</label>
+                                <select class="wb-filter-select" id="wbCategoryFilter">
+                                    <option value="">Все категории</option>
+                                </select>
+                            </div>
+
+                            <div class="wb-filter-group">
+                                <label class="wb-filter-label">Сотрудник</label>
+                                <select class="wb-filter-select" id="wbEmployeeFilter">
+                                    <option value="">Все сотрудники</option>
+                                </select>
+                            </div>
+
+                            <div class="wb-filter-group">
+                                <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+                                    <input type="checkbox" id="wbUnassignedOnly">
+                                    Только нераспределённые
+                                </label>
+                            </div>
+
+                            <hr style="border:none;border-top:1px solid var(--border);margin:12px 0">
+
+                            <div class="wb-sidebar-title">Авто-распределение</div>
+                            <div class="wb-filter-group">
+                                <label class="wb-filter-label">Метод</label>
+                                <select class="wb-filter-select" id="wbAssignMethod">
+                                    <option value="round_robin">Round-Robin (по очереди)</option>
+                                    <option value="min_load">Минимальная загрузка</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-primary" style="width:100%;margin-top:4px" onclick="batchAutoAssign()">
+                                ⚡ Распределить всё
+                            </button>
+                        </div>
+
+                        <!-- Главная область -->
+                        <div class="wb-main">
+                            <div class="wb-toolbar">
+                                <div class="wb-toolbar-title">
+                                    Все письма &nbsp;<span style="font-size:14px;font-weight:400;color:var(--text-secondary)">(<span id="wbTotalCount">0</span>)</span>
+                                </div>
+                                <input type="text" class="wb-search" id="wbSearch" placeholder="🔍 Поиск...">
+                            </div>
+
+                            <div class="wb-table-wrap">
+                                <table class="wb-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Письмо / Отправитель</th>
+                                            <th>Статус</th>
+                                            <th>Категория</th>
+                                            <th>Назначен</th>
+                                            <th>SLA</th>
+                                            <th>Дата</th>
+                                            <th>Действия</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="wbTableBody">
+                                        <tr><td colspan="7" style="text-align:center;padding:32px;color:#94a3b8">⏳ Загрузка...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="wbPagination" class="pagination" style="margin-top:12px"></div>
+
+                            <!-- Таблица загрузки сотрудников -->
+                            <div style="margin-top:24px">
+                                <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">👥 Загрузка сотрудников</h3>
+                                <div class="wb-table-wrap">
+                                    <table class="emp-load-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Сотрудник</th>
+                                                <th>Новые</th>
+                                                <th>В работе</th>
+                                                <th>Завершено</th>
+                                                <th>Просрочено</th>
+                                                <th>Загрузка</th>
+                                                <th>Ср. время закрытия</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="wbEmpTableBody">
+                                            <tr><td colspan="7" style="text-align:center;padding:20px;color:#94a3b8">Загрузка...</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============ ТАБ: ЛИЧНЫЙ КАБИНЕТ ============ -->
+                <div id="cabinet" class="tab-pane">
+                    <!-- Профиль -->
+                    <div class="cabinet-profile">
+                        <div class="cabinet-profile-header">
+                            <div class="cabinet-avatar" id="cabinetAvatar">?</div>
+                            <div>
+                                <div class="cabinet-user-name" id="cabinetUserName">Загрузка...</div>
+                                <div class="cabinet-user-role" id="cabinetUserRole"></div>
+                            </div>
+                        </div>
+                        <div class="cabinet-stats-row">
+                            <div class="cabinet-stat">
+                                <div class="val" id="cabinetStatTotal">—</div>
+                                <div class="lbl">Всего</div>
+                            </div>
+                            <div class="cabinet-stat">
+                                <div class="val" id="cabinetStatNew">—</div>
+                                <div class="lbl">Новые</div>
+                            </div>
+                            <div class="cabinet-stat">
+                                <div class="val" id="cabinetStatInProgress">—</div>
+                                <div class="lbl">В работе</div>
+                            </div>
+                            <div class="cabinet-stat">
+                                <div class="val" id="cabinetStatDone">—</div>
+                                <div class="lbl">Завершено</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Фильтры -->
+                    <div class="cabinet-filters" style="margin-bottom:16px">
+                        <select class="wb-filter-select" id="cabinetStatusFilter" style="width:auto;min-width:160px">
+                            <option value="">Все статусы</option>
+                            <option value="new">🆕 Новые</option>
+                            <option value="in_progress">⏳ В процессе</option>
+                            <option value="done">✅ Завершено</option>
+                        </select>
+                        <input type="date" class="wb-filter-input" id="cabinetDateFrom" style="width:auto" title="С даты">
+                        <input type="date" class="wb-filter-input" id="cabinetDateTo"   style="width:auto" title="По дату">
+                    </div>
+
+                    <div class="cabinet-layout">
+                        <!-- Список карточек -->
+                        <div>
+                            <div id="cabinetCardsList">
+                                <div class="empty-state"><div class="empty-state-icon">⏳</div><p>Загрузка...</p></div>
+                            </div>
+                            <div id="cabinetPagination" class="pagination"></div>
+                        </div>
+
+                        <!-- Детальная панель -->
+                        <div class="cabinet-detail-panel" id="cabinetDetailPanel">
+                            <div class="cdp-header">
+                                <div class="cdp-title">📄 Детали заявки</div>
+                            </div>
+                            <div class="cdp-body">
+                                <div class="notif-empty" style="padding:40px 20px">
+                                    ← Выберите письмо из списка
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- ============ ТАБ: СОТРУДНИКИ ============ -->
@@ -519,6 +743,33 @@
     <script type="module" src="/frontend/js/main.js"></script>
     <script type="module" src="/frontend/js/employees.js"></script>
     <script type="module" src="/frontend/js/reports.js"></script>
+    <script type="module">
+        import { initWorkbench } from '/frontend/js/workbench.js';
+        import { initCabinet }   from '/frontend/js/cabinet.js';
+        import { initNotifications } from '/frontend/js/notifications.js';
+
+        window._initWorkbench = initWorkbench;
+        window._initCabinet   = initCabinet;
+
+        // Инициализируем уведомления сразу
+        document.addEventListener('DOMContentLoaded', () => {
+            initNotifications();
+        });
+
+        // Ленивая инициализация вкладок
+        const _tabsInited = new Set();
+        document.addEventListener('tabChanged', e => {
+            const tab = e.detail;
+            if (tab === 'workbench' && !_tabsInited.has('workbench')) {
+                _tabsInited.add('workbench');
+                initWorkbench();
+            }
+            if (tab === 'cabinet' && !_tabsInited.has('cabinet')) {
+                _tabsInited.add('cabinet');
+                initCabinet();
+            }
+        });
+    </script>
     
     <script>
         window.closeModal = function() {
@@ -653,6 +904,45 @@
                 <div class="emp-modal-actions" style="margin-top: 24px;">
                     <button class="btn" style="background:#e2e8f0; color:#374151;" onclick="closeDeleteModal()">Отмена</button>
                     <button class="btn btn-danger" onclick="confirmDeleteEmployee()">🗑️ Удалить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- МОДАЛЬНОЕ ОКНО: НАЗНАЧИТЬ ПИСЬМО -->
+    <div id="assignModal" class="modal">
+        <div class="modal-content emp-modal-content" style="max-width:480px">
+            <div class="modal-header">
+                <h2>👤 Назначить письмо</h2>
+                <button class="modal-close" onclick="closeAssignModal()">&times;</button>
+            </div>
+            <div class="assign-modal-body">
+                <input type="hidden" id="assignEmailId">
+                <input type="hidden" id="assignAssignmentId">
+
+                <div class="assign-form-group">
+                    <label class="assign-form-label">👤 Сотрудник *</label>
+                    <select class="assign-form-select" id="assignEmployee">
+                        <option value="">— Выбрать сотрудника —</option>
+                    </select>
+                </div>
+                <div class="assign-form-group">
+                    <label class="assign-form-label">🏷️ Категория</label>
+                    <select class="assign-form-select" id="assignCategory">
+                        <option value="">— Авто-определить —</option>
+                    </select>
+                </div>
+                <div class="assign-form-group">
+                    <label class="assign-form-label">⏱ SLA (часов)</label>
+                    <input type="number" class="assign-form-input" id="assignSla" value="24" min="1" max="168">
+                </div>
+                <div class="assign-form-group">
+                    <label class="assign-form-label">📝 Комментарий</label>
+                    <input type="text" class="assign-form-input" id="assignNotes" placeholder="Необязательно">
+                </div>
+                <div style="display:flex;gap:8px;justify-content:flex-end">
+                    <button class="btn" style="background:#e2e8f0;color:#374151" onclick="closeAssignModal()">Отмена</button>
+                    <button class="btn btn-primary" onclick="saveAssignment()">💾 Назначить</button>
                 </div>
             </div>
         </div>
