@@ -34,6 +34,10 @@ from email_queue import start_email_worker, stop_email_worker, queue_email_for_a
 from filters_api import register_filters_blueprint
 from filters_system_v2 import init_filter_tables
 
+# ==================== ДИСПЕТЧЕРИЗАЦИЯ ====================
+from dispatch_api import register_dispatch_blueprint
+from reminder_scheduler import start_reminder_scheduler
+
 # Определяем правильные пути
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_DIR = os.path.join(BASE_DIR, '..', 'frontend', 'templates')
@@ -59,6 +63,11 @@ db.init_db()
 init_filter_tables()
 register_filters_blueprint(app)
 print("✅ Система фильтров v2 инициализирована")
+
+# ==================== ИНИЦИАЛИЗАЦИЯ ДИСПЕТЧЕРИЗАЦИИ ====================
+register_dispatch_blueprint(app)
+start_reminder_scheduler()
+print("✅ Модуль диспетчеризации инициализирован")
 
 # ==================== АВТОЗАГРУЗКА КОНТАКТОВ ИЗ XLSX ====================
 def auto_import_contacts():
@@ -200,6 +209,22 @@ def logout():
 @login_required
 def index():
     return render_template('index.html')
+
+@app.route('/api/me')
+@login_required
+def api_me():
+    """Данные текущего пользователя"""
+    user = db.get_user_by_id(session['user_id'])
+    if not user:
+        return jsonify({'error': 'Не найден'}), 404
+    return jsonify({
+        'id':        user['id'],
+        'username':  user['username'],
+        'full_name': user.get('full_name', ''),
+        'role':      user.get('role', 'employee'),
+        'email':     user.get('email', ''),
+        'is_active': user.get('is_active', 1),
+    })
 
 # ==================== API: ПИСЬМА ====================
 
