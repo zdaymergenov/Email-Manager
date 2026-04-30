@@ -817,23 +817,33 @@ def get_reports():
             replied_cnt  = row.get('replied_cnt',0) or 0
             important_cnt= row.get('important_cnt',0) or 0
 
-            # Среднее время ответа: разница между входящим и следующим
-            # исходящим письмом в той же цепочке (thread_id)
+            # Среднее время ответа: от первого письма в ветке до первого ответа сотрудника
+            # Берём только ветки, где сотрудник хотя бы раз ответил
             cursor.execute('''
                 SELECT AVG(diff_hours) as avg_reply_h FROM (
                     SELECT
-                        (JULIANDAY(out_e.date_received) - JULIANDAY(in_e.date_received)) * 24.0 as diff_hours
-                    FROM emails in_e
-                    JOIN emails out_e
-                        ON in_e.thread_id  = out_e.thread_id
-                       AND LOWER(out_e.sender_email) = ?
-                       AND out_e.date_received > in_e.date_received
-                    WHERE LOWER(in_e.sender_email) != ?
-                      AND in_e.date_received BETWEEN ? AND ?
-                      AND diff_hours > 0
-                      AND diff_hours < 168
+                        (JULIANDAY(first_reply.reply_date) - JULIANDAY(thread_start.start_date)) * 24.0 as diff_hours
+                    FROM (
+                        -- Дата первого письма в каждой ветке (начало цепочки)
+                        SELECT thread_id, MIN(date_received) as start_date
+                        FROM emails
+                        WHERE thread_id IS NOT NULL
+                        GROUP BY thread_id
+                    ) thread_start
+                    JOIN (
+                        -- Дата первого ответа сотрудника в каждой ветке
+                        SELECT thread_id, MIN(date_received) as reply_date
+                        FROM emails
+                        WHERE LOWER(sender_email) = ?
+                          AND thread_id IS NOT NULL
+                          AND date_received BETWEEN ? AND ?
+                        GROUP BY thread_id
+                    ) first_reply ON thread_start.thread_id = first_reply.thread_id
+                    WHERE first_reply.reply_date > thread_start.start_date
+                      AND (JULIANDAY(first_reply.reply_date) - JULIANDAY(thread_start.start_date)) * 24.0 > 0
+                      AND (JULIANDAY(first_reply.reply_date) - JULIANDAY(thread_start.start_date)) * 24.0 < 168
                 ) t
-            ''', (emp_email, emp_email, start_date, end_date))
+            ''', (emp_email, start_date, end_date))
             avg_row = cursor.fetchone()
             _avg = dict(avg_row) if avg_row else {}
             avg_reply_h = round(float(_avg.get('avg_reply_h') or 0), 1) if _avg.get('avg_reply_h') else None
@@ -988,6 +998,242 @@ def delete_employee(user_id):
 def employees_stats():
     """Статистика сотрудников"""
     return jsonify(db.get_users_stats())
+
+
+# ==================== API: КОНСТРУКТОР ОТЧЁТОВ ====================
+
+import json as _json_mod
+
+def _ensure_custom_reports_table():
+    with db.get_db() as conn:
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS custom_reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                config TEXT NOT NULL,
+                created_by INTEGER,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        conn.commit()
+
+_ensure_custom_reports_table()
+
+
+@app.route('/api/reports/custom', methods=['GET'])
+@login_required
+def get_custom_reports():
+    with db.get_db() as conn:
+        rows = conn.execute(
+            'SELECT id, name, description, config, created_at FROM custom_reports ORDER BY updated_at DESC'
+        ).fetchall()
+    result = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d['config'] = _json_mod.loads(d['config'])
+        except Exception:
+            d['config'] = {}
+        result.append(d)
+    return jsonify(result)
+
+
+@app.route('/api/reports/custom', methods=['POST'])
+@login_required
+def save_custom_report():
+    data = request.json or {}
+    name   = (data.get('name') or '').strip()
+    desc   = (data.get('description') or '').strip()
+    config = data.get('config', {})
+    if not name:
+        return jsonify({'error': 'Название обязательно'}), 400
+    user_id = session.get('user_id')
+    with db.get_db() as conn:
+        cur = conn.execute(
+            'INSERT INTO custom_reports (name, description, config, created_by) VALUES (?,?,?,?)',
+            (name, desc, _json_mod.dumps(config), user_id)
+        )
+        conn.commit()
+        new_id = cur.lastrowid
+    return jsonify({'id': new_id, 'name': name})
+
+
+@app.route('/api/reports/custom/<int:report_id>', methods=['PUT'])
+@login_required
+def update_custom_report(report_id):
+    data = request.json or {}
+    name   = (data.get('name') or '').strip()
+    desc   = (data.get('description') or '').strip()
+    config = data.get('config', {})
+    if not name:
+        return jsonify({'error': 'Название обязательно'}), 400
+    with db.get_db() as conn:
+        conn.execute(
+            'UPDATE custom_reports SET name=?, description=?, config=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
+            (name, desc, _json_mod.dumps(config), report_id)
+        )
+        conn.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/reports/custom/<int:report_id>', methods=['DELETE'])
+@login_required
+def delete_custom_report(report_id):
+    with db.get_db() as conn:
+        conn.execute('DELETE FROM custom_reports WHERE id=?', (report_id,))
+        conn.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/reports/custom/<int:report_id>/run', methods=['POST'])
+@login_required
+def run_custom_report(report_id):
+    with db.get_db() as conn:
+        row = conn.execute('SELECT config FROM custom_reports WHERE id=?', (report_id,)).fetchone()
+    if not row:
+        return jsonify({'error': 'Отчёт не найден'}), 404
+    config = _json_mod.loads(row['config'])
+    return _execute_report_config(config)
+
+
+@app.route('/api/reports/run', methods=['POST'])
+@login_required
+def run_report_preview():
+    config = request.json or {}
+    return _execute_report_config(config)
+
+
+def _execute_report_config(config):
+    days       = int(config.get('days', 30))
+    start_str  = config.get('start')
+    end_str    = config.get('end')
+    blocks     = config.get('blocks', [])
+    emp_filter = config.get('emp_filter', '')
+    folder_f   = config.get('folder_filter', '')
+
+    if start_str and end_str:
+        start_date = start_str + ' 00:00:00'
+        end_date   = end_str   + ' 23:59:59'
+    else:
+        end_dt   = datetime.now()
+        start_dt = end_dt - timedelta(days=days)
+        start_date = start_dt.strftime('%Y-%m-%d %H:%M:%S')
+        end_date   = end_dt.strftime('%Y-%m-%d %H:%M:%S')
+
+    result = {'period': {'start': start_date[:10], 'end': end_date[:10]}, 'blocks': {}}
+
+    folder_clause = " AND folder = ?" if folder_f else ""
+    folder_args   = (folder_f,) if folder_f else ()
+    emp_clause    = " AND LOWER(sender_email) = ?" if emp_filter else ""
+    emp_args      = (emp_filter.lower(),) if emp_filter else ()
+
+    with db.get_db() as conn:
+        cur = conn.cursor()
+
+        for block in blocks:
+            bid   = block.get('id')
+            btype = block.get('type')
+
+            if btype == 'total_emails':
+                cur.execute(
+                    'SELECT COUNT(*) as v FROM emails WHERE date_received BETWEEN ? AND ?' + folder_clause + emp_clause,
+                    (start_date, end_date) + folder_args + emp_args
+                )
+                result['blocks'][bid] = {'value': (dict(cur.fetchone() or {})).get('v') or 0}
+
+            elif btype == 'unread_emails':
+                cur.execute(
+                    'SELECT COUNT(*) as v FROM emails WHERE date_received BETWEEN ? AND ? AND is_read=0' + folder_clause + emp_clause,
+                    (start_date, end_date) + folder_args + emp_args
+                )
+                result['blocks'][bid] = {'value': (dict(cur.fetchone() or {})).get('v') or 0}
+
+            elif btype == 'replied_emails':
+                cur.execute(
+                    'SELECT COUNT(*) as v FROM emails WHERE date_received BETWEEN ? AND ? AND is_replied=1' + folder_clause + emp_clause,
+                    (start_date, end_date) + folder_args + emp_args
+                )
+                result['blocks'][bid] = {'value': (dict(cur.fetchone() or {})).get('v') or 0}
+
+            elif btype == 'important_emails':
+                cur.execute(
+                    "SELECT COUNT(*) as v FROM emails WHERE date_received BETWEEN ? AND ? AND importance='high'" + folder_clause + emp_clause,
+                    (start_date, end_date) + folder_args + emp_args
+                )
+                result['blocks'][bid] = {'value': (dict(cur.fetchone() or {})).get('v') or 0}
+
+            elif btype == 'avg_reply_time':
+                cur.execute('''
+                    SELECT AVG(diff_hours) as v FROM (
+                        SELECT (JULIANDAY(r.reply_date) - JULIANDAY(s.start_date)) * 24.0 as diff_hours
+                        FROM (SELECT thread_id, MIN(date_received) as start_date FROM emails WHERE thread_id IS NOT NULL GROUP BY thread_id) s
+                        JOIN (SELECT thread_id, MIN(date_received) as reply_date FROM emails WHERE thread_id IS NOT NULL AND date_received BETWEEN ? AND ? GROUP BY thread_id) r
+                        ON s.thread_id = r.thread_id
+                        WHERE r.reply_date > s.start_date
+                          AND (JULIANDAY(r.reply_date) - JULIANDAY(s.start_date))*24 BETWEEN 0 AND 168
+                    )
+                ''', (start_date, end_date))
+                v = (dict(cur.fetchone() or {})).get('v')
+                result['blocks'][bid] = {'value': round(float(v), 1) if v else None}
+
+            elif btype == 'activity_chart':
+                cur.execute(
+                    'SELECT DATE(date_received) as day, COUNT(*) as cnt FROM emails WHERE date_received BETWEEN ? AND ?' + folder_clause + emp_clause + ' GROUP BY day ORDER BY day',
+                    (start_date, end_date) + folder_args + emp_args
+                )
+                rows = cur.fetchall()
+                result['blocks'][bid] = {
+                    'labels': [r['day'] for r in rows],
+                    'values': [r['cnt'] for r in rows],
+                }
+
+            elif btype == 'top_senders':
+                limit = int(block.get('limit', 10))
+                cur.execute(
+                    'SELECT sender_name, sender_email, COUNT(*) as cnt FROM emails WHERE date_received BETWEEN ? AND ?' + folder_clause + emp_clause + ' GROUP BY sender_email ORDER BY cnt DESC LIMIT ?',
+                    (start_date, end_date) + folder_args + emp_args + (limit,)
+                )
+                result['blocks'][bid] = {'rows': [dict(r) for r in cur.fetchall()]}
+
+            elif btype == 'folders_breakdown':
+                cur.execute(
+                    'SELECT folder, COUNT(*) as cnt FROM emails WHERE date_received BETWEEN ? AND ?' + emp_clause + ' GROUP BY folder ORDER BY cnt DESC',
+                    (start_date, end_date) + emp_args
+                )
+                result['blocks'][bid] = {'rows': [dict(r) for r in cur.fetchall()]}
+
+            elif btype == 'employees_table':
+                cur.execute('SELECT id, full_name, email, role FROM users WHERE is_active=1 AND email IS NOT NULL AND email!="" ORDER BY full_name')
+                users = [dict(r) for r in cur.fetchall()]
+                emp_rows = []
+                for u in users:
+                    em = u['email'].lower().strip()
+                    cur.execute('SELECT COUNT(*) as v FROM emails WHERE LOWER(sender_email)!=? AND date_received BETWEEN ? AND ?', (em, start_date, end_date))
+                    received = (dict(cur.fetchone() or {})).get('v') or 0
+                    cur.execute('SELECT COUNT(*) as v FROM emails WHERE LOWER(sender_email)!=? AND is_replied=1 AND date_received BETWEEN ? AND ?', (em, start_date, end_date))
+                    replied  = (dict(cur.fetchone() or {})).get('v') or 0
+                    reply_rate = round(replied / received * 100) if received else 0
+                    emp_rows.append({'name': u['full_name'] or u['email'], 'email': u['email'], 'received': received, 'replied': replied, 'reply_rate': reply_rate})
+                result['blocks'][bid] = {'rows': emp_rows}
+
+            elif btype == 'heatmap':
+                cur.execute('''
+                    SELECT CAST(((CAST(strftime('%w',date_received) AS INTEGER)+6)%7 AS INTEGER) as dow,
+                           CAST(strftime('%H',date_received) AS INTEGER)/3 as slot,
+                           COUNT(*) as cnt
+                    FROM emails WHERE date_received BETWEEN ? AND ?
+                    GROUP BY dow, slot
+                ''', (start_date, end_date))
+                hm = [[0]*8 for _ in range(7)]
+                for r in cur.fetchall():
+                    d, s, c = int(r['dow']), int(r['slot']), int(r['cnt'])
+                    if 0 <= d < 7 and 0 <= s < 8:
+                        hm[d][s] = c
+                result['blocks'][bid] = {'matrix': hm}
+
+    return jsonify(result)
 
 
 # ==================== ЗАПУСК ====================
